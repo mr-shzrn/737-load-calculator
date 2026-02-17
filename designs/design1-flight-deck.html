@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>737 Load Calculator — Flight Deck</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oxanium:wght@300;400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        cockpit: {
+          bg: '#0a0e0f',
+          panel: '#111819',
+          border: '#1e2d2f',
+          amber: '#e5a100',
+          amberDim: '#8b6300',
+          green: '#00e55c',
+          greenDim: '#006b2b',
+          red: '#ff3333',
+          cyan: '#00bcd4',
+          text: '#c8d6d0',
+          muted: '#5a6e68',
+        }
+      },
+      fontFamily: {
+        mono: ['Share Tech Mono', 'monospace'],
+        display: ['Oxanium', 'sans-serif'],
+        body: ['Rajdhani', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0a0e0f; }
+
+  /* Scanline overlay */
+  .scanlines::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Glowing input focus */
+  .cockpit-input:focus {
+    box-shadow: 0 0 12px rgba(229,161,0,0.3), inset 0 0 8px rgba(229,161,0,0.1);
+    border-color: #e5a100;
+  }
+
+  /* Amber glow text */
+  .glow-amber { text-shadow: 0 0 10px rgba(229,161,0,0.5); }
+  .glow-green { text-shadow: 0 0 10px rgba(0,229,92,0.5); }
+  .glow-red { text-shadow: 0 0 10px rgba(255,51,51,0.5); }
+
+  /* Instrument bezel */
+  .bezel {
+    background: linear-gradient(145deg, #1a2425, #0d1415);
+    border: 1px solid #1e2d2f;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  /* Panel screws */
+  .screw::before {
+    content: '+';
+    position: absolute;
+    font-size: 8px;
+    color: #2a3a3c;
+    font-family: monospace;
+  }
+
+  /* Step indicator active pulse */
+  @keyframes activePulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(229,161,0,0.4); }
+    50% { box-shadow: 0 0 16px rgba(229,161,0,0.7); }
+  }
+  .step-active { animation: activePulse 2s ease-in-out infinite; }
+
+  /* Fade in animation */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeSlideUp 0.4s ease-out forwards; }
+
+  /* Gauge bar fill */
+  @keyframes fillBar {
+    from { width: 0; }
+  }
+  .gauge-fill { animation: fillBar 1s ease-out forwards; }
+
+  /* Knurled edge texture */
+  .knurled {
+    background-image: repeating-linear-gradient(
+      90deg, transparent, transparent 3px, rgba(255,255,255,0.02) 3px, rgba(255,255,255,0.02) 4px
+    );
+  }
+</style>
+</head>
+<body class="scanlines min-h-screen font-body text-cockpit-text overflow-x-hidden">
+
+<!-- Top instrument bar -->
+<header class="bg-cockpit-panel border-b border-cockpit-border px-4 py-3 flex items-center justify-between knurled">
+  <div class="flex items-center gap-3">
+    <div class="w-2 h-2 rounded-full bg-cockpit-green glow-green"></div>
+    <h1 class="font-display font-bold text-lg tracking-widest text-cockpit-amber glow-amber uppercase">
+      737 Load &amp; Trim
+    </h1>
+  </div>
+  <div class="flex items-center gap-4 font-mono text-xs text-cockpit-muted">
+    <span>MH OPS</span>
+    <span class="text-cockpit-amber">738-MX-16BC</span>
+    <div class="flex items-center gap-1">
+      <div class="w-1.5 h-1.5 rounded-full bg-cockpit-green"></div>
+      <span class="text-cockpit-green text-[10px]">VALID</span>
+    </div>
+  </div>
+</header>
+
+<!-- Step Navigation -->
+<nav class="bg-cockpit-panel border-b border-cockpit-border px-4 py-2">
+  <div class="flex items-center justify-between max-w-3xl mx-auto">
+    <button onclick="goToStep(1)" class="step-btn step-active flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-amber bg-cockpit-amber/10" data-step="1">
+      <span class="font-mono text-[10px] text-cockpit-amber">01</span>
+      <span class="text-[11px] text-cockpit-amber font-semibold tracking-wide">ACFT</span>
+    </button>
+    <div class="flex-1 h-px bg-cockpit-border mx-1"></div>
+    <button onclick="goToStep(2)" class="step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border" data-step="2">
+      <span class="font-mono text-[10px] text-cockpit-muted">02</span>
+      <span class="text-[11px] text-cockpit-muted font-semibold tracking-wide">DOW</span>
+    </button>
+    <div class="flex-1 h-px bg-cockpit-border mx-1"></div>
+    <button onclick="goToStep(3)" class="step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border" data-step="3">
+      <span class="font-mono text-[10px] text-cockpit-muted">03</span>
+      <span class="text-[11px] text-cockpit-muted font-semibold tracking-wide">PAX</span>
+    </button>
+    <div class="flex-1 h-px bg-cockpit-border mx-1"></div>
+    <button onclick="goToStep(4)" class="step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border" data-step="4">
+      <span class="font-mono text-[10px] text-cockpit-muted">04</span>
+      <span class="text-[11px] text-cockpit-muted font-semibold tracking-wide">CARGO</span>
+    </button>
+    <div class="flex-1 h-px bg-cockpit-border mx-1"></div>
+    <button onclick="goToStep(5)" class="step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border" data-step="5">
+      <span class="font-mono text-[10px] text-cockpit-muted">05</span>
+      <span class="text-[11px] text-cockpit-muted font-semibold tracking-wide">FUEL</span>
+    </button>
+    <div class="flex-1 h-px bg-cockpit-border mx-1"></div>
+    <button onclick="goToStep(6)" class="step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border" data-step="6">
+      <span class="font-mono text-[10px] text-cockpit-muted">06</span>
+      <span class="text-[11px] text-cockpit-muted font-semibold tracking-wide">RESULT</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Main Content Area -->
+<main class="max-w-3xl mx-auto p-4 pb-28">
+
+  <!-- Step 1: Aircraft Selection -->
+  <section id="step-1" class="step-content fade-in">
+    <div class="bezel rounded-lg p-5 mb-4">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+        <h2 class="font-display font-bold text-base tracking-wider text-cockpit-amber uppercase">Aircraft Selection</h2>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block font-mono text-[11px] text-cockpit-muted mb-1.5 tracking-wider">VARIANT</label>
+          <select class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2.5 font-mono text-cockpit-amber text-sm focus:outline-none transition-all">
+            <option selected>738-MX-16BC</option>
+            <option>738-MX-12BC</option>
+            <option>738-MX-162EY</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bezel rounded p-3">
+            <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">MTOW</span>
+            <p class="font-mono text-cockpit-green text-lg glow-green">79,016 <span class="text-xs text-cockpit-muted">KG</span></p>
+          </div>
+          <div class="bezel rounded p-3">
+            <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">MZFW</span>
+            <p class="font-mono text-cockpit-green text-lg glow-green">65,317 <span class="text-xs text-cockpit-muted">KG</span></p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bezel rounded p-3 text-center">
+            <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">MLW</span>
+            <p class="font-mono text-cockpit-amber text-sm">66,361</p>
+          </div>
+          <div class="bezel rounded p-3 text-center">
+            <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">CONFIG</span>
+            <p class="font-mono text-cockpit-amber text-sm">16BC</p>
+          </div>
+          <div class="bezel rounded p-3 text-center">
+            <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">SEATS</span>
+            <p class="font-mono text-cockpit-amber text-sm">162</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2: DOW/DOI -->
+  <section id="step-2" class="step-content hidden">
+    <div class="bezel rounded-lg p-5 mb-4 fade-in">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+        <h2 class="font-display font-bold text-base tracking-wider text-cockpit-amber uppercase">Dry Operating Weight</h2>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block font-mono text-[11px] text-cockpit-muted mb-1.5 tracking-wider">DOW (KG)</label>
+          <input type="number" value="44565" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2.5 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+        </div>
+        <div>
+          <label class="block font-mono text-[11px] text-cockpit-muted mb-1.5 tracking-wider">DOI</label>
+          <input type="number" value="48" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2.5 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+        </div>
+      </div>
+
+      <div class="mt-4 bezel rounded p-3">
+        <div class="flex justify-between items-center">
+          <span class="font-mono text-[10px] text-cockpit-muted tracking-wider">LMC CORRECTION</span>
+          <span class="font-mono text-cockpit-green text-sm glow-green">±0 KG</span>
+        </div>
+        <div class="mt-2 h-1.5 bg-cockpit-bg rounded-full overflow-hidden">
+          <div class="h-full bg-cockpit-green rounded-full" style="width: 50%; margin-left: 25%"></div>
+        </div>
+        <div class="flex justify-between mt-1">
+          <span class="font-mono text-[9px] text-cockpit-muted">-500</span>
+          <span class="font-mono text-[9px] text-cockpit-muted">+500</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3: Passengers -->
+  <section id="step-3" class="step-content hidden">
+    <div class="bezel rounded-lg p-5 mb-4 fade-in">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+        <h2 class="font-display font-bold text-base tracking-wider text-cockpit-amber uppercase">Passengers</h2>
+        <span class="ml-auto font-mono text-[10px] text-cockpit-muted">STD WT: 77 KG</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bezel rounded p-3">
+          <label class="block font-mono text-[10px] text-cockpit-muted mb-1.5 tracking-wider">ZONE OA — FWD</label>
+          <input type="number" value="4" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <p class="mt-1 font-mono text-[10px] text-cockpit-muted text-center">308 KG</p>
+        </div>
+        <div class="bezel rounded p-3">
+          <label class="block font-mono text-[10px] text-cockpit-muted mb-1.5 tracking-wider">ZONE OB — FWD-MID</label>
+          <input type="number" value="37" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <p class="mt-1 font-mono text-[10px] text-cockpit-muted text-center">2,849 KG</p>
+        </div>
+        <div class="bezel rounded p-3">
+          <label class="block font-mono text-[10px] text-cockpit-muted mb-1.5 tracking-wider">ZONE OC — AFT-MID</label>
+          <input type="number" value="30" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <p class="mt-1 font-mono text-[10px] text-cockpit-muted text-center">2,310 KG</p>
+        </div>
+        <div class="bezel rounded p-3">
+          <label class="block font-mono text-[10px] text-cockpit-muted mb-1.5 tracking-wider">ZONE OD — AFT</label>
+          <input type="number" value="20" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <p class="mt-1 font-mono text-[10px] text-cockpit-muted text-center">1,540 KG</p>
+        </div>
+      </div>
+
+      <div class="mt-4 bezel rounded p-3 flex justify-between items-center">
+        <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">TOTAL PAX</span>
+        <div class="text-right">
+          <span class="font-mono text-cockpit-green text-lg glow-green">91</span>
+          <span class="font-mono text-cockpit-muted text-xs ml-2">/ 162</span>
+        </div>
+      </div>
+      <div class="mt-2 bezel rounded p-3 flex justify-between items-center">
+        <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">TOTAL PAX WEIGHT</span>
+        <span class="font-mono text-cockpit-green text-lg glow-green">7,007 <span class="text-xs text-cockpit-muted">KG</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 4: Cargo -->
+  <section id="step-4" class="step-content hidden">
+    <div class="bezel rounded-lg p-5 mb-4 fade-in">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+        <h2 class="font-display font-bold text-base tracking-wider text-cockpit-amber uppercase">Cargo Holds</h2>
+      </div>
+
+      <div class="space-y-3">
+        <div class="bezel rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-mono text-[10px] text-cockpit-muted tracking-wider">HOLD 1 — FWD</label>
+            <span class="font-mono text-[10px] text-cockpit-muted">MAX: 2,402 KG</span>
+          </div>
+          <input type="number" value="750" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-1.5 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full bg-cockpit-amber rounded-full gauge-fill" style="width: 31%"></div>
+          </div>
+        </div>
+
+        <div class="bezel rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-mono text-[10px] text-cockpit-muted tracking-wider">HOLD 2 — FWD</label>
+            <span class="font-mono text-[10px] text-cockpit-muted">MAX: 2,402 KG</span>
+          </div>
+          <input type="number" value="900" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-1.5 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full bg-cockpit-amber rounded-full gauge-fill" style="width: 37%"></div>
+          </div>
+        </div>
+
+        <div class="bezel rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-mono text-[10px] text-cockpit-muted tracking-wider">HOLD 3 — AFT</label>
+            <span class="font-mono text-[10px] text-cockpit-muted">MAX: 1,497 KG</span>
+          </div>
+          <input type="number" value="700" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-1.5 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full bg-cockpit-amber rounded-full gauge-fill" style="width: 47%"></div>
+          </div>
+        </div>
+
+        <div class="bezel rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <label class="font-mono text-[10px] text-cockpit-muted tracking-wider">HOLD 4 — BULK</label>
+            <span class="font-mono text-[10px] text-cockpit-muted">MAX: 1,000 KG</span>
+          </div>
+          <input type="number" value="350" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-1.5 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full bg-cockpit-amber rounded-full gauge-fill" style="width: 35%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 bezel rounded p-3 flex justify-between items-center">
+        <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">TOTAL CARGO</span>
+        <span class="font-mono text-cockpit-green text-lg glow-green">2,700 <span class="text-xs text-cockpit-muted">KG</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 5: Fuel -->
+  <section id="step-5" class="step-content hidden">
+    <div class="bezel rounded-lg p-5 mb-4 fade-in">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+        <h2 class="font-display font-bold text-base tracking-wider text-cockpit-amber uppercase">Fuel Loading</h2>
+      </div>
+
+      <!-- Wing tank visual -->
+      <div class="bezel rounded-lg p-4 mb-4">
+        <div class="relative flex items-center justify-center" style="height:120px">
+          <!-- Simplified aircraft top-down silhouette -->
+          <svg viewBox="0 0 300 100" class="w-full h-full opacity-30" fill="none" stroke="#1e2d2f" stroke-width="1">
+            <!-- Fuselage -->
+            <ellipse cx="150" cy="50" rx="120" ry="14" fill="#111819" stroke="#1e2d2f"/>
+            <!-- Wings -->
+            <path d="M100,50 L40,35 L45,45 L110,50" fill="#111819" stroke="#1e2d2f"/>
+            <path d="M100,50 L40,65 L45,55 L110,50" fill="#111819" stroke="#1e2d2f"/>
+            <path d="M200,50 L260,35 L255,45 L190,50" fill="#111819" stroke="#1e2d2f"/>
+            <path d="M200,50 L260,65 L255,55 L190,50" fill="#111819" stroke="#1e2d2f"/>
+          </svg>
+          <!-- Labels on top -->
+          <div class="absolute inset-0 flex items-center justify-center gap-12">
+            <div class="text-center">
+              <span class="font-mono text-[9px] text-cockpit-muted block tracking-wider">WING L</span>
+              <span class="font-mono text-cockpit-amber text-sm">3,500</span>
+            </div>
+            <div class="text-center">
+              <span class="font-mono text-[9px] text-cockpit-muted block tracking-wider">CENTER</span>
+              <span class="font-mono text-cockpit-cyan text-sm" style="color:#00bcd4">800</span>
+            </div>
+            <div class="text-center">
+              <span class="font-mono text-[9px] text-cockpit-muted block tracking-wider">WING R</span>
+              <span class="font-mono text-cockpit-amber text-sm">3,500</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block font-mono text-[11px] text-cockpit-muted mb-1.5 tracking-wider">WING FUEL (KG)</label>
+          <input type="number" value="7000" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2.5 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-2 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full bg-cockpit-amber rounded-full gauge-fill" style="width: 42%"></div>
+          </div>
+        </div>
+        <div>
+          <label class="block font-mono text-[11px] text-cockpit-muted mb-1.5 tracking-wider">CENTER FUEL (KG)</label>
+          <input type="number" value="800" class="cockpit-input w-full bg-cockpit-bg border border-cockpit-border rounded px-3 py-2.5 font-mono text-cockpit-amber text-lg focus:outline-none transition-all text-center">
+          <div class="mt-2 h-2 bg-cockpit-bg rounded-full overflow-hidden">
+            <div class="h-full rounded-full gauge-fill" style="width: 10%; background: #00bcd4"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 bezel rounded p-3 flex justify-between items-center">
+        <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">TOTAL FUEL</span>
+        <span class="font-mono text-cockpit-green text-lg glow-green">7,800 <span class="text-xs text-cockpit-muted">KG</span></span>
+      </div>
+      <div class="mt-2 bezel rounded p-3 flex justify-between items-center">
+        <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">FUEL INDEX</span>
+        <span class="font-mono text-cockpit-amber text-lg glow-amber">21</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 6: Results -->
+  <section id="step-6" class="step-content hidden">
+    <div class="fade-in space-y-4">
+
+      <!-- Weight Summary -->
+      <div class="bezel rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-1 h-6 bg-cockpit-green rounded-full"></div>
+          <h2 class="font-display font-bold text-base tracking-wider text-cockpit-green uppercase glow-green">Calculation Results</h2>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between items-center py-1.5 border-b border-cockpit-border/50">
+            <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">DRY OPERATING WEIGHT</span>
+            <span class="font-mono text-cockpit-text">44,565 KG</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-cockpit-border/50">
+            <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">+ PASSENGERS</span>
+            <span class="font-mono text-cockpit-text">7,007 KG</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-cockpit-border/50">
+            <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">+ CARGO</span>
+            <span class="font-mono text-cockpit-text">2,700 KG</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b-2 border-cockpit-amber/30">
+            <span class="font-mono text-[11px] text-cockpit-amber tracking-wider font-bold">ZERO FUEL WEIGHT</span>
+            <span class="font-mono text-cockpit-amber text-lg glow-amber">54,272 KG</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-cockpit-border/50">
+            <span class="font-mono text-[11px] text-cockpit-muted tracking-wider">+ FUEL</span>
+            <span class="font-mono text-cockpit-text">7,800 KG</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b-2 border-cockpit-green/30">
+            <span class="font-mono text-[11px] text-cockpit-green tracking-wider font-bold">TAKEOFF WEIGHT</span>
+            <span class="font-mono text-cockpit-green text-lg glow-green">62,072 KG</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CG / MAC Results -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bezel rounded-lg p-4 text-center">
+          <span class="font-mono text-[10px] text-cockpit-muted tracking-wider block mb-2">ZFW %MAC</span>
+          <span class="font-display text-3xl font-bold text-cockpit-green glow-green">20.0</span>
+          <span class="font-mono text-[10px] text-cockpit-muted block mt-1">%</span>
+        </div>
+        <div class="bezel rounded-lg p-4 text-center">
+          <span class="font-mono text-[10px] text-cockpit-muted tracking-wider block mb-2">TOW %MAC</span>
+          <span class="font-display text-3xl font-bold text-cockpit-amber glow-amber">23.5</span>
+          <span class="font-mono text-[10px] text-cockpit-muted block mt-1">%</span>
+        </div>
+        <div class="bezel rounded-lg p-4 text-center">
+          <span class="font-mono text-[10px] text-cockpit-muted tracking-wider block mb-2">TRIM STAB</span>
+          <span class="font-display text-3xl font-bold text-cockpit-cyan" style="color:#00bcd4; text-shadow:0 0 10px rgba(0,188,212,0.5)">5.2</span>
+          <span class="font-mono text-[10px] text-cockpit-muted block mt-1">F5 / 26K</span>
+        </div>
+      </div>
+
+      <!-- CG Envelope visualization -->
+      <div class="bezel rounded-lg p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-6 bg-cockpit-amber rounded-full"></div>
+          <h3 class="font-display font-bold text-sm tracking-wider text-cockpit-amber uppercase">CG Envelope</h3>
+        </div>
+        <div class="relative bg-cockpit-bg rounded p-4" style="height: 200px">
+          <!-- Grid -->
+          <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+            <!-- Grid lines -->
+            <line x1="50" y1="20" x2="50" y2="180" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="130" y1="20" x2="130" y2="180" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="210" y1="20" x2="210" y2="180" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="290" y1="20" x2="290" y2="180" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="370" y1="20" x2="370" y2="180" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="50" y1="60" x2="370" y2="60" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="50" y1="100" x2="370" y2="100" stroke="#1e2d2f" stroke-width="0.5"/>
+            <line x1="50" y1="140" x2="370" y2="140" stroke="#1e2d2f" stroke-width="0.5"/>
+
+            <!-- Envelope boundary -->
+            <polygon points="90,20 340,20 370,60 370,160 80,160 50,100"
+              fill="rgba(229,161,0,0.05)" stroke="#e5a100" stroke-width="1.5" stroke-opacity="0.4"/>
+
+            <!-- ZFW point -->
+            <circle cx="170" cy="120" r="5" fill="#00e55c" stroke="#00e55c" stroke-width="2" opacity="0.9"/>
+            <text x="182" y="118" fill="#00e55c" font-size="10" font-family="Share Tech Mono">ZFW</text>
+
+            <!-- TOW point -->
+            <circle cx="220" cy="70" r="5" fill="#e5a100" stroke="#e5a100" stroke-width="2" opacity="0.9"/>
+            <text x="232" y="68" fill="#e5a100" font-size="10" font-family="Share Tech Mono">TOW</text>
+
+            <!-- Line connecting them -->
+            <line x1="170" y1="120" x2="220" y2="70" stroke="#5a6e68" stroke-width="1" stroke-dasharray="4,3"/>
+
+            <!-- Axis labels -->
+            <text x="200" y="196" fill="#5a6e68" font-size="9" font-family="Share Tech Mono" text-anchor="middle">%MAC</text>
+            <text x="16" y="100" fill="#5a6e68" font-size="9" font-family="Share Tech Mono" text-anchor="middle" transform="rotate(-90,16,100)">WEIGHT</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div class="bezel rounded-lg p-4 border-l-4 border-cockpit-green">
+        <div class="flex items-center gap-3">
+          <div class="w-3 h-3 rounded-full bg-cockpit-green glow-green"></div>
+          <span class="font-display font-bold text-cockpit-green tracking-wider uppercase glow-green">Within Limits — Safe for Departure</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Bottom Navigation Bar -->
+<footer class="fixed bottom-0 left-0 right-0 bg-cockpit-panel border-t border-cockpit-border px-4 py-3 knurled">
+  <div class="max-w-3xl mx-auto flex items-center justify-between">
+    <button id="btn-prev" onclick="prevStep()" class="px-5 py-2.5 rounded border border-cockpit-border font-display font-semibold text-sm tracking-wider text-cockpit-muted hover:text-cockpit-text hover:border-cockpit-amber/50 transition-all disabled:opacity-30" disabled>
+      ◂ PREV
+    </button>
+    <span id="step-label" class="font-mono text-[11px] text-cockpit-muted tracking-widest">STEP 1 / 6</span>
+    <button id="btn-next" onclick="nextStep()" class="px-5 py-2.5 rounded border border-cockpit-amber bg-cockpit-amber/10 font-display font-semibold text-sm tracking-wider text-cockpit-amber hover:bg-cockpit-amber/20 transition-all">
+      NEXT ▸
+    </button>
+  </div>
+</footer>
+
+<script>
+let currentStep = 1;
+const totalSteps = 6;
+
+function goToStep(n) {
+  document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`step-${n}`).classList.remove('hidden');
+
+  document.querySelectorAll('.step-btn').forEach((btn, i) => {
+    const s = i + 1;
+    if (s === n) {
+      btn.className = 'step-btn step-active flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-amber bg-cockpit-amber/10';
+      btn.querySelector('span:first-child').className = 'font-mono text-[10px] text-cockpit-amber';
+      btn.querySelector('span:last-child').className = 'text-[11px] text-cockpit-amber font-semibold tracking-wide';
+    } else if (s < n) {
+      btn.className = 'step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-greenDim bg-cockpit-greenDim/10';
+      btn.querySelector('span:first-child').className = 'font-mono text-[10px] text-cockpit-green';
+      btn.querySelector('span:last-child').className = 'text-[11px] text-cockpit-green font-semibold tracking-wide';
+    } else {
+      btn.className = 'step-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded border border-cockpit-border';
+      btn.querySelector('span:first-child').className = 'font-mono text-[10px] text-cockpit-muted';
+      btn.querySelector('span:last-child').className = 'text-[11px] text-cockpit-muted font-semibold tracking-wide';
+    }
+  });
+
+  currentStep = n;
+  document.getElementById('btn-prev').disabled = n === 1;
+  document.getElementById('btn-next').textContent = n === totalSteps ? '✓ DONE' : 'NEXT ▸';
+  document.getElementById('step-label').textContent = `STEP ${n} / ${totalSteps}`;
+}
+
+function nextStep() { if (currentStep < totalSteps) goToStep(currentStep + 1); }
+function prevStep() { if (currentStep > 1) goToStep(currentStep - 1); }
+</script>
+</body>
+</html>
