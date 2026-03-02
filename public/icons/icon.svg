@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#003366"/>
+  <text x="256" y="200" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="120" fill="#ffffff">737</text>
+  <text x="256" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="52" fill="rgba(255,255,255,0.7)">LOAD</text>
+  <text x="256" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="52" fill="rgba(255,255,255,0.7)">&amp; TRIM</text>
+  <rect x="0" y="480" width="333" height="32" rx="0" fill="#003366"/>
+  <rect x="333" y="480" width="179" height="32" rx="0" fill="#cc0033"/>
+</svg>

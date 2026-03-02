@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>737 Load Calculator — Design C: Stepper</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'media',
+  theme: {
+    extend: {
+      colors: {
+        mas: { navy: '#003366', navyLight: '#004d99', red: '#cc0033' },
+      },
+      fontFamily: {
+        sans: ['Instrument Sans', 'sans-serif'],
+        mono: ['Fira Code', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* Light */
+  body { background: #f5f6f8; color: #374151; }
+  .top-bar { background: #003366; color: white; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; }
+  .card:hover { border-color: #d1d5db; }
+  .input-box { background: #f9fafb; border: 1.5px solid #e5e7eb; border-radius: 12px; color: #111827; }
+  .input-box:focus { outline: none; border-color: #003366; box-shadow: 0 0 0 3px rgba(0,51,102,0.08); background: #fff; }
+  .lbl { color: #6b7280; }
+  .val { color: #111827; }
+  .sub { color: #9ca3af; }
+  .bg-subtle { background: #f9fafb; }
+  .progress-track { background: #e5e7eb; }
+  .progress-fill { background: #003366; }
+  .btn-primary { background: #003366; color: #fff; }
+  .btn-primary:hover { background: #004d99; }
+  .btn-outline { background: transparent; border: 1.5px solid #e5e7eb; color: #6b7280; }
+  .btn-outline:hover { border-color: #003366; color: #003366; }
+  .bottom-bar { background: #fff; border-top: 1px solid #e5e7eb; }
+
+  /* Dark */
+  @media (prefers-color-scheme: dark) {
+    body { background: #0b0f1a; color: #d1d5db; }
+    .top-bar { background: #001a33; }
+    .card { background: #111827; border-color: #1f2937; }
+    .card:hover { border-color: #374151; }
+    .input-box { background: #0d1117; border-color: #1f2937; color: #f3f4f6; }
+    .input-box:focus { border-color: #004d99; box-shadow: 0 0 0 3px rgba(0,77,153,0.2); background: #111827; }
+    .lbl { color: #6b7280; }
+    .val { color: #f9fafb; }
+    .sub { color: #4b5563; }
+    .bg-subtle { background: #0d1117; }
+    .progress-track { background: #1f2937; }
+    .bottom-bar { background: #111827; border-color: #1f2937; }
+  }
+
+  /* Pill badges */
+  .tag { display: inline-flex; align-items: center; gap: 2px; padding: 3px 10px; border-radius: 99px; font-family: 'Fira Code', monospace; font-weight: 600; }
+  .tag-sm { font-size: 11px; padding: 2px 8px; }
+  .tag-md { font-size: 14px; padding: 4px 12px; }
+  .tag-lg { font-size: 18px; padding: 6px 16px; }
+  .tag-xl { font-size: 24px; padding: 8px 20px; }
+  .tag-blue { background: #dbeafe; color: #1e40af; }
+  .tag-navy { background: #e0ecf8; color: #003366; }
+  .tag-red { background: #fee2e2; color: #b91c1c; }
+  .tag-green { background: #d1fae5; color: #065f46; }
+  .tag-amber { background: #fef3c7; color: #92400e; }
+  .tag-gray { background: #f3f4f6; color: #374151; }
+
+  @media (prefers-color-scheme: dark) {
+    .tag-blue { background: #1e3a5f; color: #93c5fd; }
+    .tag-navy { background: #0e1a30; color: #7db8f0; }
+    .tag-red { background: #3b1020; color: #fca5a5; }
+    .tag-green { background: #052e1a; color: #6ee7b7; }
+    .tag-amber { background: #2e1f05; color: #fcd34d; }
+    .tag-gray { background: #1f2937; color: #9ca3af; }
+  }
+
+  /* Progress stepper */
+  .stepper { display: flex; align-items: center; gap: 0; }
+  .step-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; transition: all 0.2s; }
+  .step-dot.current { background: #003366; color: #fff; box-shadow: 0 0 0 4px rgba(0,51,102,0.15); }
+  .step-dot.done { background: #d1fae5; color: #065f46; }
+  .step-dot.pending { background: #e5e7eb; color: #9ca3af; }
+  @media (prefers-color-scheme: dark) {
+    .step-dot.current { box-shadow: 0 0 0 4px rgba(0,77,153,0.3); }
+    .step-dot.done { background: #052e1a; color: #6ee7b7; }
+    .step-dot.pending { background: #1f2937; color: #4b5563; }
+  }
+  .step-line { flex: 1; height: 2px; }
+  .step-line.done { background: #059669; }
+  .step-line.pending { background: #e5e7eb; }
+  @media (prefers-color-scheme: dark) { .step-line.pending { background: #1f2937; } }
+
+  /* Slide */
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .slide { animation: slideIn 0.3s ease-out forwards; }
+
+  .touch { min-height: 48px; }
+</style>
+</head>
+<body class="min-h-screen font-sans flex flex-col">
+
+<!-- Top bar -->
+<header class="top-bar px-5 py-3.5 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <svg class="w-6 h-6 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+    </svg>
+    <div>
+      <h1 class="text-[15px] font-bold leading-tight">737 Load & Trim Calculator</h1>
+      <p class="text-[10px] text-white/50">Malaysia Airlines · Flight Ops Training</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="tag tag-sm" style="background: rgba(255,255,255,0.12); color: #fff;">738-MX-16BC</span>
+  </div>
+</header>
+
+<!-- Progress stepper -->
+<div class="bg-subtle px-5 py-4">
+  <div class="max-w-2xl mx-auto">
+    <div class="stepper">
+      <div class="step-dot current" data-step="1">1</div>
+      <div class="step-line pending"></div>
+      <div class="step-dot pending" data-step="2">2</div>
+      <div class="step-line pending"></div>
+      <div class="step-dot pending" data-step="3">3</div>
+      <div class="step-line pending"></div>
+      <div class="step-dot pending" data-step="4">4</div>
+      <div class="step-line pending"></div>
+      <div class="step-dot pending" data-step="5">5</div>
+      <div class="step-line pending"></div>
+      <div class="step-dot pending" data-step="6">6</div>
+    </div>
+    <div class="flex justify-between mt-2">
+      <span class="text-[10px] lbl font-semibold w-8 text-center">ACFT</span>
+      <span class="text-[10px] lbl font-semibold w-8 text-center">DOW</span>
+      <span class="text-[10px] lbl font-semibold w-8 text-center">PAX</span>
+      <span class="text-[10px] lbl font-semibold w-8 text-center">CGO</span>
+      <span class="text-[10px] lbl font-semibold w-8 text-center">FUEL</span>
+      <span class="text-[10px] lbl font-semibold w-8 text-center">RESULT</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<main class="flex-1 overflow-y-auto px-5 py-5 pb-28">
+  <div class="max-w-2xl mx-auto">
+
+    <!-- Step 1 -->
+    <section id="step-1" class="step-content slide">
+      <div class="mb-5">
+        <h2 class="text-[20px] font-bold val">Aircraft Selection</h2>
+        <p class="text-[14px] sub mt-0.5">Select variant and review weight limits.</p>
+      </div>
+
+      <div class="card p-5 mb-4">
+        <label class="block text-[11px] font-bold lbl uppercase tracking-wider mb-2">Aircraft Variant</label>
+        <select class="input-box w-full px-4 py-3.5 text-[15px] font-semibold touch">
+          <option selected>738-MX-16BC</option>
+          <option>738-MX-12BC</option>
+          <option>738-MX-162EY</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="card p-4 text-center">
+          <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-2">MTOW</span>
+          <span class="tag tag-lg tag-navy">79,016</span>
+          <span class="text-[10px] sub block mt-1">kg</span>
+        </div>
+        <div class="card p-4 text-center">
+          <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-2">MZFW</span>
+          <span class="tag tag-lg tag-navy">65,317</span>
+          <span class="text-[10px] sub block mt-1">kg</span>
+        </div>
+        <div class="card p-4 text-center">
+          <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-2">MLW</span>
+          <span class="tag tag-lg tag-navy">66,361</span>
+          <span class="text-[10px] sub block mt-1">kg</span>
+        </div>
+      </div>
+
+      <div class="card p-4 flex items-center gap-3">
+        <span class="tag tag-md tag-gray">16BC</span>
+        <span class="text-[14px] font-semibold val">162 Seats</span>
+      </div>
+    </section>
+
+    <!-- Step 2 -->
+    <section id="step-2" class="step-content hidden">
+      <div class="slide">
+        <div class="mb-5">
+          <h2 class="text-[20px] font-bold val">Dry Operating Weight</h2>
+          <p class="text-[14px] sub mt-0.5">Enter values from aircraft loadsheet.</p>
+        </div>
+
+        <div class="card p-5 mb-4">
+          <div class="grid grid-cols-2 gap-5">
+            <div>
+              <label class="block text-[11px] font-bold lbl uppercase tracking-wider mb-2">DOW (kg)</label>
+              <input type="number" value="44565" class="input-box w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold lbl uppercase tracking-wider mb-2">DOI (Index)</label>
+              <input type="number" value="48" class="input-box w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch">
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[13px] font-semibold val">LMC Correction</span>
+            <span class="tag tag-md tag-green">±0 kg</span>
+          </div>
+          <div class="h-2.5 rounded-full progress-track overflow-hidden">
+            <div class="h-full bg-green-500 rounded-full" style="width: 50%; margin-left: 25%"></div>
+          </div>
+          <div class="flex justify-between mt-1"><span class="text-[10px] sub font-mono">-500</span><span class="text-[10px] sub font-mono">+500</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3 -->
+    <section id="step-3" class="step-content hidden">
+      <div class="slide">
+        <div class="flex items-start justify-between mb-5">
+          <div>
+            <h2 class="text-[20px] font-bold val">Passengers</h2>
+            <p class="text-[14px] sub mt-0.5">Std weight: 77 kg per pax</p>
+          </div>
+          <div class="text-right">
+            <span class="tag tag-xl tag-navy">91</span>
+            <span class="text-[11px] sub block mt-1">of 162 seats</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[13px] font-bold val">Zone OA</span>
+              <span class="tag tag-sm tag-gray">FWD</span>
+            </div>
+            <input type="number" value="4" class="input-box w-full px-3 py-3 text-xl font-mono font-bold text-center touch">
+            <div class="mt-2 text-center"><span class="tag tag-md tag-navy">308 kg</span></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[13px] font-bold val">Zone OB</span>
+              <span class="tag tag-sm tag-gray">FWD-M</span>
+            </div>
+            <input type="number" value="37" class="input-box w-full px-3 py-3 text-xl font-mono font-bold text-center touch">
+            <div class="mt-2 text-center"><span class="tag tag-md tag-navy">2,849 kg</span></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[13px] font-bold val">Zone OC</span>
+              <span class="tag tag-sm tag-gray">AFT-M</span>
+            </div>
+            <input type="number" value="30" class="input-box w-full px-3 py-3 text-xl font-mono font-bold text-center touch">
+            <div class="mt-2 text-center"><span class="tag tag-md tag-navy">2,310 kg</span></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[13px] font-bold val">Zone OD</span>
+              <span class="tag tag-sm tag-gray">AFT</span>
+            </div>
+            <input type="number" value="20" class="input-box w-full px-3 py-3 text-xl font-mono font-bold text-center touch">
+            <div class="mt-2 text-center"><span class="tag tag-md tag-navy">1,540 kg</span></div>
+          </div>
+        </div>
+
+        <div class="card p-4 flex items-center justify-between">
+          <span class="text-[14px] font-semibold val">Total Passenger Weight</span>
+          <span class="tag tag-xl tag-navy">7,007 kg</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 4 -->
+    <section id="step-4" class="step-content hidden">
+      <div class="slide">
+        <div class="mb-5">
+          <h2 class="text-[20px] font-bold val">Cargo Loading</h2>
+          <p class="text-[14px] sub mt-0.5">Weight per hold compartment.</p>
+        </div>
+
+        <div class="space-y-3 mb-4">
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[14px] font-bold val">Hold 1</span>
+                <span class="tag tag-sm tag-gray">FWD</span>
+              </div>
+              <span class="tag tag-sm tag-navy">31%</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="number" value="750" class="input-box flex-1 px-4 py-3 font-mono text-lg font-bold text-center touch">
+              <span class="text-[11px] sub font-mono whitespace-nowrap">/ 2,402</span>
+            </div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[14px] font-bold val">Hold 2</span>
+                <span class="tag tag-sm tag-gray">FWD</span>
+              </div>
+              <span class="tag tag-sm tag-navy">37%</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="number" value="900" class="input-box flex-1 px-4 py-3 font-mono text-lg font-bold text-center touch">
+              <span class="text-[11px] sub font-mono whitespace-nowrap">/ 2,402</span>
+            </div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[14px] font-bold val">Hold 3</span>
+                <span class="tag tag-sm tag-gray">AFT</span>
+              </div>
+              <span class="tag tag-sm tag-amber">47%</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="number" value="700" class="input-box flex-1 px-4 py-3 font-mono text-lg font-bold text-center touch">
+              <span class="text-[11px] sub font-mono whitespace-nowrap">/ 1,497</span>
+            </div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[14px] font-bold val">Hold 4</span>
+                <span class="tag tag-sm tag-gray">BULK</span>
+              </div>
+              <span class="tag tag-sm tag-navy">35%</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="number" value="350" class="input-box flex-1 px-4 py-3 font-mono text-lg font-bold text-center touch">
+              <span class="text-[11px] sub font-mono whitespace-nowrap">/ 1,000</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 flex items-center justify-between">
+          <span class="text-[14px] font-semibold val">Total Cargo</span>
+          <span class="tag tag-xl tag-navy">2,700 kg</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 5 -->
+    <section id="step-5" class="step-content hidden">
+      <div class="slide">
+        <div class="mb-5">
+          <h2 class="text-[20px] font-bold val">Fuel Loading</h2>
+          <p class="text-[14px] sub mt-0.5">Distribution by tank.</p>
+        </div>
+
+        <div class="card p-5 mb-4">
+          <div class="grid grid-cols-2 gap-5">
+            <div>
+              <label class="block text-[11px] font-bold lbl uppercase tracking-wider mb-2">Wing Fuel (kg)</label>
+              <input type="number" value="7000" class="input-box w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold lbl uppercase tracking-wider mb-2">Center Fuel (kg)</label>
+              <input type="number" value="800" class="input-box w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="card p-4 text-center">
+            <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-2">Total Fuel</span>
+            <span class="tag tag-xl tag-navy">7,800 kg</span>
+          </div>
+          <div class="card p-4 text-center">
+            <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-2">Fuel Index</span>
+            <span class="tag tag-xl tag-navy">21</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 6 -->
+    <section id="step-6" class="step-content hidden">
+      <div class="slide space-y-4">
+        <!-- Status -->
+        <div class="card p-4 flex items-center gap-3 border-l-4" style="border-left-color: #059669;">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: #d1fae5;">
+            <svg class="w-5 h-5" style="color:#059669" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div>
+            <p class="text-[14px] font-bold" style="color:#059669">Within Operational Limits</p>
+            <p class="text-[12px] sub">All weights and CG verified within envelope.</p>
+          </div>
+        </div>
+
+        <!-- Big 3 results -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="card p-5 text-center">
+            <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-3">ZFW %MAC</span>
+            <span class="tag tag-xl tag-green">20.0%</span>
+          </div>
+          <div class="card p-5 text-center">
+            <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-3">TOW %MAC</span>
+            <span class="tag tag-xl tag-navy">23.5%</span>
+          </div>
+          <div class="card p-5 text-center">
+            <span class="text-[10px] font-bold lbl uppercase tracking-wider block mb-3">Trim</span>
+            <span class="tag tag-xl tag-red">5.2</span>
+            <span class="text-[11px] sub block mt-1">F5 / 26K</span>
+          </div>
+        </div>
+
+        <!-- Weight table -->
+        <div class="card p-5">
+          <h3 class="text-[11px] font-bold lbl uppercase tracking-wider mb-3">Weight Summary</h3>
+          <div class="divide-y" style="border-color: rgba(0,0,0,0.05);">
+            <div class="flex items-center justify-between py-2.5">
+              <span class="text-[14px]">Dry Operating Weight</span>
+              <span class="tag tag-md tag-navy">44,565 kg</span>
+            </div>
+            <div class="flex items-center justify-between py-2.5">
+              <span class="text-[14px]">+ Passengers (91 × 77)</span>
+              <span class="tag tag-md tag-navy">7,007 kg</span>
+            </div>
+            <div class="flex items-center justify-between py-2.5">
+              <span class="text-[14px]">+ Cargo</span>
+              <span class="tag tag-md tag-navy">2,700 kg</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between py-3 px-3 -mx-3 rounded-xl mt-1 bg-subtle">
+            <span class="text-[14px] font-bold val">Zero Fuel Weight</span>
+            <span class="tag tag-lg tag-navy">54,272 kg</span>
+          </div>
+          <div class="flex items-center justify-between py-2.5 mt-1">
+            <span class="text-[14px]">+ Fuel</span>
+            <span class="tag tag-md tag-navy">7,800 kg</span>
+          </div>
+          <div class="flex items-center justify-between py-3 px-4 -mx-3 rounded-xl mt-1" style="background: #003366;">
+            <span class="text-[15px] font-bold text-white">Takeoff Weight</span>
+            <span class="font-mono text-[22px] font-bold text-white">62,072 kg</span>
+          </div>
+        </div>
+
+        <!-- CG -->
+        <div class="card p-5">
+          <h3 class="text-[11px] font-bold lbl uppercase tracking-wider mb-3">CG Envelope</h3>
+          <div class="relative rounded-xl overflow-hidden bg-subtle p-3" style="height: 180px;">
+            <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 180" preserveAspectRatio="none">
+              <line x1="50" y1="15" x2="50" y2="165" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="130" y1="15" x2="130" y2="165" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="210" y1="15" x2="210" y2="165" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="290" y1="15" x2="290" y2="165" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="50" y1="55" x2="370" y2="55" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="50" y1="95" x2="370" y2="95" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+              <line x1="50" y1="135" x2="370" y2="135" stroke="currentColor" stroke-width="0.3" opacity="0.08"/>
+
+              <polygon points="90,15 340,15 370,50 370,150 80,150 50,90"
+                fill="rgba(0,51,102,0.04)" stroke="#003366" stroke-width="1.5" stroke-opacity="0.2"/>
+
+              <circle cx="170" cy="110" r="7" fill="#059669"/>
+              <text x="184" y="108" fill="#059669" font-size="11" font-family="Instrument Sans" font-weight="700">ZFW 20.0%</text>
+
+              <circle cx="220" cy="55" r="7" fill="#003366"/>
+              <text x="234" y="53" fill="#003366" font-size="11" font-family="Instrument Sans" font-weight="700">TOW 23.5%</text>
+
+              <line x1="170" y1="110" x2="220" y2="55" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,3"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- Bottom bar -->
+<footer class="fixed bottom-0 left-0 right-0 bottom-bar px-5 py-3.5">
+  <div class="max-w-2xl mx-auto flex items-center justify-between">
+    <button id="btn-prev" onclick="prevStep()" disabled class="btn-outline touch px-6 py-3 rounded-xl font-semibold text-[14px] transition-all disabled:opacity-30">
+      ← Previous
+    </button>
+    <span id="step-label" class="text-[12px] font-semibold sub">Step 1 of 6</span>
+    <button id="btn-next" onclick="nextStep()" class="btn-primary touch px-6 py-3 rounded-xl font-semibold text-[14px] transition-all shadow-sm">
+      Next →
+    </button>
+  </div>
+</footer>
+
+<script>
+let currentStep = 1;
+const totalSteps = 6;
+
+function goToStep(n) {
+  document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`step-${n}`).classList.remove('hidden');
+
+  // Update stepper dots
+  document.querySelectorAll('.step-dot').forEach((dot, i) => {
+    const s = i + 1;
+    dot.classList.remove('current', 'done', 'pending');
+    if (s === n) dot.classList.add('current');
+    else if (s < n) dot.classList.add('done');
+    else dot.classList.add('pending');
+  });
+
+  // Update lines
+  document.querySelectorAll('.step-line').forEach((line, i) => {
+    line.classList.remove('done', 'pending');
+    if (i + 1 < n) line.classList.add('done');
+    else line.classList.add('pending');
+  });
+
+  currentStep = n;
+  document.getElementById('btn-prev').disabled = n === 1;
+  document.getElementById('btn-next').innerHTML = n === totalSteps ? 'Export PDF ↓' : 'Next →';
+  document.getElementById('step-label').textContent = `Step ${n} of ${totalSteps}`;
+}
+
+function nextStep() { if (currentStep < totalSteps) goToStep(currentStep + 1); }
+function prevStep() { if (currentStep > 1) goToStep(currentStep - 1); }
+
+// Make dots clickable
+document.querySelectorAll('.step-dot').forEach(dot => {
+  dot.style.cursor = 'pointer';
+  dot.addEventListener('click', () => goToStep(parseInt(dot.dataset.step)));
+});
+</script>
+</body>
+</html>

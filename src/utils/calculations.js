@@ -1,6 +1,6 @@
 // Core calculation engine for 737 Load & Trim Calculator
 import { PASSENGER_WEIGHTS } from '../data/aircraftData.js';
-import { TRIM_CORRECTIONS_737_800, TRIM_TABLE_737_800 } from '../data/trimCorrections.js';
+import { TRIM_CORRECTIONS_737_800, TRIM_TABLE_737_800, CG_ENVELOPE_737_800 } from '../data/trimCorrections.js';
 import {
   getAllPassengerIndices,
   getAllCargoIndices,
@@ -85,15 +85,30 @@ export function performCalculation(input) {
   const toi = finalZfi + fuelIndexResult.index;
 
   // 8. Landing weight (TOW - trip fuel; use total fuel as estimate if trip fuel not provided)
-  const tripFuel = input.tripFuel || totalFuel * 0.6; // Rough estimate: 60% of total fuel
+  const tripFuelExplicit = input.fuel?.tripFuel || input.tripFuel;
+  const tripFuel = tripFuelExplicit || totalFuel * 0.6; // Rough estimate: 60% of total fuel
+  const tripFuelEstimated = !tripFuelExplicit;
   const landingWeight = tow - tripFuel;
 
   // 9. CG calculation (% MAC) - pass weight for accurate arm-based calculation
   const zfmac = indexToMac(finalZfi, finalZfw);
   const tomac = indexToMac(toi, tow);
+  const landingIndex = totalFuel > 0 ? toi - fuelIndexResult.index * (tripFuel / totalFuel) : toi;
+  const landingMac = indexToMac(landingIndex, landingWeight);
 
   // 10. Trim calculation
   const trimResult = calculateTrim(aircraft, toi, tow, takeoffConfig);
+
+  // 11. CG limits at actual weights (interpolated from envelope)
+  const zfwLimits = getCgLimitsAtWeight(CG_ENVELOPE_737_800.zfw, finalZfw);
+  const towLimits = getCgLimitsAtWeight(CG_ENVELOPE_737_800.tow, tow);
+
+  // 12. UNDLD — spare payload before hitting tightest structural limit
+  const undldZfw = (aircraft.weights.mzfw || 999999) - finalZfw;
+  const undldTow = (aircraft.weights.mtow || 999999) - tow;
+  const undldLaw = (aircraft.weights.mlw || 999999) - landingWeight;
+  const undld = Math.min(undldZfw, undldTow, undldLaw);
+  const limitingFactor = undld === undldLaw ? 'L' : undld === undldTow ? 'T' : 'Z';
 
   return {
     // Input summary
@@ -151,12 +166,21 @@ export function performCalculation(input) {
       finalZfw,
       tow,
       landingWeight: Math.round(landingWeight),
+      tripFuel: Math.round(tripFuel),
+      tripFuelEstimated,
+      undld: Math.round(undld),
+      limitingFactor,
     },
 
     // CG results
     cg: {
       zfmac: Math.round(zfmac * 10) / 10,
       tomac: Math.round(tomac * 10) / 10,
+      landingMac: Math.round(landingMac * 10) / 10,
+      zfwFwdLmt: zfwLimits.forward,
+      zfwAftLmt: zfwLimits.aft,
+      towFwdLmt: towLimits.forward,
+      towAftLmt: towLimits.aft,
     },
 
     // Trim results
@@ -172,6 +196,26 @@ export function performCalculation(input) {
     // Takeoff config
     takeoffConfig,
   };
+}
+
+/**
+ * Interpolate forward/aft CG limits at a given weight from the envelope table.
+ */
+function getCgLimitsAtWeight(envelope, weight) {
+  if (!envelope || envelope.length === 0) return { forward: null, aft: null };
+  if (weight <= envelope[0].weight) return { forward: envelope[0].forward, aft: envelope[0].aft };
+  const last = envelope[envelope.length - 1];
+  if (weight >= last.weight) return { forward: last.forward, aft: last.aft };
+  for (let i = 0; i < envelope.length - 1; i++) {
+    if (weight >= envelope[i].weight && weight <= envelope[i + 1].weight) {
+      const ratio = (weight - envelope[i].weight) / (envelope[i + 1].weight - envelope[i].weight);
+      return {
+        forward: Math.round((envelope[i].forward + ratio * (envelope[i + 1].forward - envelope[i].forward)) * 100) / 100,
+        aft: Math.round((envelope[i].aft + ratio * (envelope[i + 1].aft - envelope[i].aft)) * 100) / 100,
+      };
+    }
+  }
+  return { forward: null, aft: null };
 }
 
 // 737-800 CG reference constants derived from the Boeing performance manual.
