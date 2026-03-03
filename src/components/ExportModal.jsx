@@ -1,26 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCalculation } from '../context/CalculationContext.jsx';
-import { generateLoadsheetPDF } from '../utils/pdfExport.js';
+
+const EXPORT_PREFS_KEY = '737calc_export_prefs';
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(EXPORT_PREFS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function savePrefs(prefs) {
+  try {
+    localStorage.setItem(EXPORT_PREFS_KEY, JSON.stringify(prefs));
+  } catch (_) { /* ignore */ }
+}
 
 export default function ExportModal({ onClose }) {
   const { results, validation, inputs } = useCalculation();
+  const prefs = loadPrefs();
 
-  // Flight header
-  const [flightNumber, setFlightNumber] = useState('');
-  const [registration, setRegistration] = useState('9M-');
+  // Flight header — pre-populate from last export + current inputs
+  const [flightNumber, setFlightNumber] = useState(prefs.flightNumber || '');
+  const [registration, setRegistration] = useState(inputs.registration || prefs.registration || '9M-');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [departure, setDeparture] = useState('');
-  const [arrival, setArrival] = useState('');
-  const [crew, setCrew] = useState('2/4');
+  const [departure, setDeparture] = useState(prefs.departure || '');
+  const [arrival, setArrival] = useState(prefs.arrival || '');
+  const [crew, setCrew] = useState(prefs.crew || '2/4');
 
-  // Personnel
-  const [preparer, setPreparer] = useState('');
-  const [licence, setLicence] = useState('');
-  const [supervisor, setSupervisor] = useState('');
-  const [staffId, setStaffId] = useState('');
-  const [picName, setPicName] = useState('');
+  // Personnel — pre-populate from last export
+  const [preparer, setPreparer] = useState(prefs.preparer || '');
+  const [licence, setLicence] = useState(prefs.licence || '');
+  const [supervisor, setSupervisor] = useState(prefs.supervisor || '');
+  const [staffId, setStaffId] = useState(prefs.staffId || '');
+  const [picName, setPicName] = useState(prefs.picName || '');
 
-  const handleExport = () => {
+  // Sync registration from inputs when modal opens
+  useEffect(() => {
+    if (inputs.registration) setRegistration(inputs.registration);
+  }, [inputs.registration]);
+
+  const handleExport = async () => {
+    // Save prefs for next time (exclude date which changes)
+    savePrefs({ flightNumber, registration, departure, arrival, crew, preparer, licence, supervisor, staffId, picName });
+
+    // Lazy-load jsPDF only when needed
+    const { generateLoadsheetPDF } = await import('../utils/pdfExport.js');
     generateLoadsheetPDF(results, validation, inputs, {
       flightNumber: flightNumber || undefined,
       registration: registration || undefined,
@@ -67,8 +94,8 @@ export default function ExportModal({ onClose }) {
                 <input
                   type="text"
                   value={registration}
-                  onChange={(e) => setRegistration(e.target.value)}
-                  className={fieldClass}
+                  onChange={(e) => setRegistration(e.target.value.toUpperCase())}
+                  className={`${fieldClass} uppercase`}
                   placeholder="9M-MXA"
                 />
               </div>

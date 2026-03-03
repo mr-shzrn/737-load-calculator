@@ -372,7 +372,7 @@ export const FUEL_INDEX_737_800 = {
     { weight: 6500,   index: -8 },
     { weight: 7000,   index: -9 },
     { weight: 7500,   index: -10 },
-    { weight: 7801,   index: 8 },
+    { weight: 7801,   index: -10 },
     { weight: 8000,   index: -10 },
     { weight: 8500,   index: -11 },
     { weight: 9000,   index: -12 },

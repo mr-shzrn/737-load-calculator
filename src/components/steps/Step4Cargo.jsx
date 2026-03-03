@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCalculation } from '../../context/CalculationContext.jsx';
 import Pill from '../shared/Pill.jsx';
+import NumericInput from '../shared/NumericInput.jsx';
 
 const HOLDS = [
   { id: 'HOLD1', label: 'Hold 1 — Forward', max: 888 },
@@ -35,15 +36,14 @@ export default function Step4Cargo() {
                 <span className="text-[14px] font-bold heading">{label}</span>
                 <Pill variant={pillVariant}>{pct}%</Pill>
               </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min="0"
+              <div className="flex items-center gap-3 mt-1">
+                <NumericInput
+                  value={cargo[id] || 0}
+                  min={0}
                   max={max}
-                  value={cargo[id] || ''}
-                  onChange={(e) => setCargo(id, e.target.value ? Number(e.target.value) : 0)}
-                  className="field-input flex-1 px-4 py-3 font-mono text-lg font-bold text-center touch"
-                  placeholder="0"
+                  step={50}
+                  onChange={(v) => setCargo(id, v)}
+                  className="flex-1"
                 />
                 <span className="text-[11px] muted font-mono w-20 text-right">/ {fmt(max)} kg</span>
               </div>

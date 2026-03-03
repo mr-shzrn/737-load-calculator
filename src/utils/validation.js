@@ -1,5 +1,5 @@
 // Validation logic for 737 Load & Trim Calculator
-import { CG_ENVELOPE_737_800 } from '../data/trimCorrections.js';
+import { CG_ENVELOPE_737_800, CG_ENVELOPE_737_MAX_8 } from '../data/trimCorrections.js';
 
 /**
  * Validate Takeoff Weight against limits.
@@ -52,10 +52,12 @@ export function validateLandingWeight(lw, mlw) {
  * @param {number} weight - Weight in kg (ZFW or TOW)
  * @param {number} macPercent - CG position in % MAC
  * @param {string} phase - 'zfw' or 'tow'
+ * @param {string} [aircraftType='737-800'] - Aircraft type for envelope selection
  * @returns {Object} { pass: boolean, errors: string[], forwardLimit, aftLimit }
  */
-export function validateCGEnvelope(weight, macPercent, phase = 'tow') {
-  const envelope = CG_ENVELOPE_737_800[phase];
+export function validateCGEnvelope(weight, macPercent, phase = 'tow', aircraftType = '737-800') {
+  const envelopeSet = aircraftType === '737-MAX-8' ? CG_ENVELOPE_737_MAX_8 : CG_ENVELOPE_737_800;
+  const envelope = envelopeSet[phase];
   if (!envelope || envelope.length === 0) {
     return { pass: true, errors: [], forwardLimit: null, aftLimit: null };
   }
@@ -155,6 +157,32 @@ export function validateCargoWeight(hold, weight) {
 }
 
 /**
+ * Validate fuel tank quantities against aircraft maximums.
+ * @param {number} wingFuel - Wing tanks fuel in kg
+ * @param {number} centerFuel - Center tank fuel in kg
+ * @param {Object} aircraft - Aircraft variant
+ * @returns {Object} { pass: boolean, errors: string[] }
+ */
+export function validateFuelTanks(wingFuel, centerFuel, aircraft) {
+  const errors = [];
+  const wingMax = aircraft.wingTankMax || 7830;
+  const centerMax = aircraft.type === '737-MAX-8' ? 12990 : 13066;
+  const totalMax = aircraft.type === '737-MAX-8' ? 20728 : 20896;
+  const total = wingFuel + centerFuel;
+
+  if (wingFuel > wingMax) {
+    errors.push(`Wing tanks ${wingFuel} kg exceeds max ${wingMax} kg`);
+  }
+  if (centerFuel > centerMax) {
+    errors.push(`Centre tank ${centerFuel} kg exceeds max ${centerMax} kg`);
+  }
+  if (total > totalMax) {
+    errors.push(`Total fuel ${total} kg exceeds max ${totalMax} kg`);
+  }
+  return { pass: errors.length === 0, errors };
+}
+
+/**
  * Run all validations against calculation results.
  * @param {Object} results - Output from performCalculation()
  * @param {Object} aircraft - Aircraft variant with weight limits
@@ -166,8 +194,9 @@ export function validateAll(results, aircraft) {
   const lwValidation = validateLandingWeight(results.weights.landingWeight, aircraft.weights.mlw);
   const lmcValidation = validateLMC(results.lmc.totalWeight);
 
-  const cgZfwValidation = validateCGEnvelope(results.weights.finalZfw, results.cg.zfmac, 'zfw');
-  const cgTowValidation = validateCGEnvelope(results.weights.tow, results.cg.tomac, 'tow');
+  const cgZfwValidation = validateCGEnvelope(results.weights.finalZfw, results.cg.zfmac, 'zfw', aircraft.type);
+  const cgTowValidation = validateCGEnvelope(results.weights.tow, results.cg.tomac, 'tow', aircraft.type);
+  const fuelValidation = validateFuelTanks(results.fuel.wingTanks, results.fuel.centerTank, aircraft);
 
   // Validate each passenger zone
   const paxValidations = {};
@@ -192,6 +221,7 @@ export function validateAll(results, aircraft) {
     ...lmcValidation.errors,
     ...cgZfwValidation.errors,
     ...cgTowValidation.errors,
+    ...fuelValidation.errors,
     ...Object.values(paxValidations).flatMap((v) => v.errors),
     ...Object.values(cargoValidations).flatMap((v) => v.errors),
   ];
@@ -205,6 +235,7 @@ export function validateAll(results, aircraft) {
     lmc: lmcValidation,
     cgZfw: cgZfwValidation,
     cgTow: cgTowValidation,
+    fuel: fuelValidation,
     passengers: paxValidations,
     cargo: cargoValidations,
   };

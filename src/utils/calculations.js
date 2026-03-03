@@ -1,6 +1,6 @@
 // Core calculation engine for 737 Load & Trim Calculator
 import { PASSENGER_WEIGHTS } from '../data/aircraftData.js';
-import { TRIM_CORRECTIONS_737_800, TRIM_TABLE_737_800, CG_ENVELOPE_737_800 } from '../data/trimCorrections.js';
+import { TRIM_CORRECTIONS_737_800, TRIM_TABLE_737_800, CG_ENVELOPE_737_800, CG_ENVELOPE_737_MAX_8 } from '../data/trimCorrections.js';
 import {
   getAllPassengerIndices,
   getAllCargoIndices,
@@ -29,8 +29,11 @@ export function performCalculation(input) {
   const fuelIndexResult = calculateFuelIndex(totalFuel, fuel.wingTanks, fuel.centerTank, aircraft.fuelTableSet || '738');
 
   // 2. Calculate passenger totals
-  const totalPax = Object.values(passengers).reduce((sum, p) => sum + (p || 0), 0);
-  const totalPaxWeight = totalPax * PASSENGER_WEIGHTS.adult;
+  const totalAdultPax = Object.values(passengers).reduce((sum, p) => sum + (p || 0), 0);
+  const children = input.children || 0;
+  const infants = input.infants || 0;
+  const totalPax = totalAdultPax + children + infants;
+  const totalPaxWeight = totalAdultPax * PASSENGER_WEIGHTS.adult + children * PASSENGER_WEIGHTS.child;
 
   // 3. Calculate cargo totals
   const totalCargoWeight = Object.values(cargo).reduce((sum, w) => sum + (w || 0), 0);
@@ -91,7 +94,7 @@ export function performCalculation(input) {
   const landingWeight = tow - tripFuel;
 
   // 9. CG calculation (% MAC) - use variant-specific LEMAC
-  const variantLemac = aircraft.lemac || LEMAC;
+  const variantLemac = aircraft.lemac;
   const zfmac = indexToMac(finalZfi, finalZfw, variantLemac);
   const tomac = indexToMac(toi, tow, variantLemac);
   const landingIndex = totalFuel > 0 ? toi - fuelIndexResult.index * (tripFuel / totalFuel) : toi;
@@ -101,8 +104,9 @@ export function performCalculation(input) {
   const trimResult = calculateTrim(aircraft, toi, tow, takeoffConfig);
 
   // 11. CG limits at actual weights (interpolated from envelope)
-  const zfwLimits = getCgLimitsAtWeight(CG_ENVELOPE_737_800.zfw, finalZfw);
-  const towLimits = getCgLimitsAtWeight(CG_ENVELOPE_737_800.tow, tow);
+  const cgEnvelope = aircraft.type === '737-MAX-8' ? CG_ENVELOPE_737_MAX_8 : CG_ENVELOPE_737_800;
+  const zfwLimits = getCgLimitsAtWeight(cgEnvelope.zfw, finalZfw);
+  const towLimits = getCgLimitsAtWeight(cgEnvelope.tow, tow);
 
   // 12. UNDLD — spare payload before hitting tightest structural limit
   const undldZfw = (aircraft.weights.mzfw || 999999) - finalZfw;
@@ -122,7 +126,10 @@ export function performCalculation(input) {
     // Passenger details
     passengers: {
       zones: passengerIndices,
+      totalAdultPax,
       totalPax,
+      children,
+      infants,
       totalWeight: totalPaxWeight,
     },
 

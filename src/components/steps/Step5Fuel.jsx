@@ -6,8 +6,20 @@ function fmt(n) {
   return n != null ? n.toLocaleString() : '---';
 }
 
+const FLAP_LABELS = {
+  F5:  'Standard departure',
+  F15: 'Short / hot / high field',
+};
+
+const THRUST_LABELS = {
+  '26K': 'Full rated',
+  '24K': 'Derate 1',
+  '22K': 'Derate 2',
+  'N/A': 'Set by FMC',
+};
+
 export default function Step5Fuel() {
-  const { inputs, aircraft, results, setFuel, setTakeoffConfig } = useCalculation();
+  const { inputs, aircraft, results, validation, setFuel, setTakeoffConfig } = useCalculation();
   const fuel = inputs.fuel;
   const [fuelMode, setFuelMode] = useState('total');
   const totalFuel = (fuel.wingTanks || 0) + (fuel.centerTank || 0);
@@ -15,8 +27,13 @@ export default function Step5Fuel() {
   const config = inputs.takeoffConfig;
   const availableThrust = aircraft?.availableThrust || ['26K', '24K', '22K'];
 
+  const wingMax = aircraft?.wingTankMax || 7830;
+  const centerMax = aircraft?.type === '737-MAX-8' ? 12990 : 13066;
+  const totalMax = aircraft?.type === '737-MAX-8' ? 20728 : 20896;
+
+  const fuelErrors = validation?.fuel?.errors || [];
+
   function distribute(total) {
-    const wingMax = aircraft?.wingTankMax || 20819;
     const wing = Math.min(total, wingMax);
     const centre = Math.max(0, total - wingMax);
     setFuel('wingTanks', wing);
@@ -34,6 +51,13 @@ export default function Step5Fuel() {
     <div className="fade-in max-w-xl">
       <h2 className="text-xl font-bold heading mb-1">Fuel Loading</h2>
       <p className="text-[14px] muted mb-6">Takeoff Fuel (TOF) distribution by tank.</p>
+
+      {/* Fuel validation errors */}
+      {fuelErrors.length > 0 && (
+        <div className="mb-4 rounded-xl p-3 text-[12px]" style={{ background: '#fef2f2', border: '1px solid #fca5a5' }}>
+          {fuelErrors.map((e, i) => <p key={i} className="text-red-700">⚠ {e}</p>)}
+        </div>
+      )}
 
       {/* Mode toggle */}
       <div className="flex gap-2 mb-4">
@@ -56,11 +80,12 @@ export default function Step5Fuel() {
         <>
           <div>
             <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-              Total Fuel on Board (kg)
+              Total Fuel on Board (kg) <span className="font-normal normal-case muted">max {fmt(totalMax)}</span>
             </label>
             <input
               type="number"
               min="0"
+              max={totalMax}
               value={totalFuel || ''}
               onChange={(e) => distribute(e.target.value ? Number(e.target.value) : 0)}
               className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
@@ -71,10 +96,12 @@ export default function Step5Fuel() {
             <div className="live-panel p-4 text-center">
               <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Wing 1+2</span>
               <span className="text-xl font-mono font-bold heading">{fmt(fuel.wingTanks || 0)} kg</span>
+              <span className="text-[10px] muted block mt-1">max {fmt(wingMax)}</span>
             </div>
             <div className="live-panel p-4 text-center">
               <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Centre Tank</span>
               <span className="text-xl font-mono font-bold heading">{fmt(fuel.centerTank || 0)} kg</span>
+              <span className="text-[10px] muted block mt-1">max {fmt(centerMax)}</span>
             </div>
           </div>
         </>
@@ -82,27 +109,29 @@ export default function Step5Fuel() {
         <div className="grid grid-cols-2 gap-5">
           <div>
             <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-              Wing 1+2 TOF (kg)
+              Wing 1+2 TOF (kg) <span className="font-normal normal-case muted">max {fmt(wingMax)}</span>
             </label>
             <input
               type="number"
               min="0"
+              max={wingMax}
               value={fuel.wingTanks || ''}
               onChange={(e) => setFuel('wingTanks', e.target.value ? Number(e.target.value) : 0)}
-              className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
+              className={`field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch ${(fuel.wingTanks || 0) > wingMax ? 'border-red-400' : ''}`}
               placeholder="0"
             />
           </div>
           <div>
             <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-              Centre Tank TOF (kg)
+              Centre Tank TOF (kg) <span className="font-normal normal-case muted">max {fmt(centerMax)}</span>
             </label>
             <input
               type="number"
               min="0"
+              max={centerMax}
               value={fuel.centerTank || ''}
               onChange={(e) => setFuel('centerTank', e.target.value ? Number(e.target.value) : 0)}
-              className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
+              className={`field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch ${(fuel.centerTank || 0) > centerMax ? 'border-red-400' : ''}`}
               placeholder="0"
             />
           </div>
@@ -157,6 +186,7 @@ export default function Step5Fuel() {
                 </button>
               ))}
             </div>
+            <p className="text-[10px] muted mt-1.5 text-center">{FLAP_LABELS[config.flaps]}</p>
           </div>
           <div>
             <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
@@ -177,6 +207,7 @@ export default function Step5Fuel() {
                 </button>
               ))}
             </div>
+            <p className="text-[10px] muted mt-1.5 text-center">{THRUST_LABELS[config.thrust] || ''}</p>
           </div>
         </div>
       </div>

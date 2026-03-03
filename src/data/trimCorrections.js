@@ -59,6 +59,36 @@ export const CG_ENVELOPE_737_800 = {
   ],
 };
 
+// CG Envelope for 737 MAX 8
+// NOTE: These values are estimated from Boeing patterns pending official MAX 8 LTS confirmation.
+// MAX 8 MTOW = 82,644 kg, MZFW = 65,952 kg. CG limits are similar to 737-800 but
+// extended to the higher MAX 8 weight range.
+export const CG_ENVELOPE_737_MAX_8 = {
+  zfw: [
+    { weight: 38000, forward: 14.0, aft: 33.0 },
+    { weight: 42000, forward: 14.0, aft: 33.0 },
+    { weight: 46000, forward: 14.0, aft: 33.0 },
+    { weight: 50000, forward: 14.0, aft: 33.0 },
+    { weight: 54000, forward: 14.5, aft: 33.0 },
+    { weight: 58000, forward: 15.0, aft: 33.0 },
+    { weight: 62000, forward: 15.5, aft: 32.5 },
+    { weight: 65952, forward: 16.0, aft: 32.0 },
+  ],
+  tow: [
+    { weight: 42000, forward: 14.0, aft: 33.0 },
+    { weight: 46000, forward: 14.0, aft: 33.0 },
+    { weight: 50000, forward: 14.0, aft: 33.0 },
+    { weight: 54000, forward: 14.0, aft: 33.0 },
+    { weight: 58000, forward: 14.0, aft: 33.0 },
+    { weight: 62000, forward: 14.5, aft: 33.0 },
+    { weight: 66000, forward: 15.0, aft: 33.0 },
+    { weight: 70000, forward: 15.5, aft: 32.5 },
+    { weight: 74000, forward: 16.0, aft: 32.0 },
+    { weight: 78000, forward: 16.5, aft: 31.5 },
+    { weight: 82644, forward: 17.0, aft: 31.0 },
+  ],
+};
+
 // Index to %MAC conversion table
 // Maps index units to %MAC for a given weight range
 // This approximation is used when the envelope chart is not available

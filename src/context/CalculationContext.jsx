@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react';
 import { AIRCRAFT_VARIANTS } from '../data/aircraftData.js';
 import { performCalculation } from '../utils/calculations.js';
 import { validateAll } from '../utils/validation.js';
@@ -7,25 +7,40 @@ const CalculationContext = createContext(null);
 
 let nextLmcId = 1;
 
+const DEFAULT_INPUTS = {
+  aircraftId: '738-MX-16BC',
+  registration: '',
+  dow: '',
+  doi: '',
+  passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
+  children: 0,
+  infants: 0,
+  cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
+  fuel: { wingTanks: 0, centerTank: 0, tripFuel: null },
+  takeoffConfig: { flaps: 'F5', thrust: '26K' },
+};
+
+function loadFromSession() {
+  try {
+    const saved = sessionStorage.getItem('737calc_inputs');
+    if (saved) return { ...DEFAULT_INPUTS, ...JSON.parse(saved) };
+  } catch (_) { /* ignore */ }
+  return DEFAULT_INPUTS;
+}
+
 const initialState = {
   currentStep: 1,
   lmcItems: [],
   lmcPanelOpen: false,
-  inputs: {
-    aircraftId: '738-MX-16BC',
-    dow: 44565,
-    doi: 48,
-    passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
-    cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
-    fuel: { wingTanks: 0, centerTank: 0, tripFuel: null },
-    takeoffConfig: { flaps: 'F5', thrust: '26K' },
-  },
+  inputs: loadFromSession(),
 };
 
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_AIRCRAFT':
       return { ...state, inputs: { ...state.inputs, aircraftId: action.payload } };
+    case 'SET_REGISTRATION':
+      return { ...state, inputs: { ...state.inputs, registration: action.payload } };
     case 'SET_DOW':
       return { ...state, inputs: { ...state.inputs, dow: action.payload } };
     case 'SET_DOI':
@@ -38,6 +53,10 @@ function reducer(state, action) {
           passengers: { ...state.inputs.passengers, [action.zone]: action.payload },
         },
       };
+    case 'SET_CHILDREN':
+      return { ...state, inputs: { ...state.inputs, children: action.payload } };
+    case 'SET_INFANTS':
+      return { ...state, inputs: { ...state.inputs, infants: action.payload } };
     case 'SET_CARGO':
       return {
         ...state,
@@ -72,6 +91,10 @@ function reducer(state, action) {
       return { ...state, lmcItems: [] };
     case 'TOGGLE_LMC_PANEL':
       return { ...state, lmcPanelOpen: !state.lmcPanelOpen };
+    case 'RESET_ALL':
+      return { ...initialState, inputs: DEFAULT_INPUTS, currentStep: 1, lmcItems: [] };
+    case 'RESTORE_INPUTS':
+      return { ...state, inputs: { ...DEFAULT_INPUTS, ...action.payload }, lmcItems: action.lmcItems || [], currentStep: 1 };
     default:
       return state;
   }
@@ -79,6 +102,13 @@ function reducer(state, action) {
 
 export function CalculationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  // Persist inputs to sessionStorage on every change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('737calc_inputs', JSON.stringify(state.inputs));
+    } catch (_) { /* ignore */ }
+  }, [state.inputs]);
 
   const aircraft = useMemo(
     () => AIRCRAFT_VARIANTS.find((v) => v.id === state.inputs.aircraftId) || null,
@@ -99,14 +129,18 @@ export function CalculationProvider({ children }) {
   }, [aircraft, state.inputs.takeoffConfig]);
 
   const results = useMemo(() => {
-    const { dow, doi, passengers, cargo, fuel } = state.inputs;
-    if (!aircraft || dow == null || doi == null) return null;
+    const { dow, doi, passengers, cargo, fuel, children, infants } = state.inputs;
+    const dowNum = Number(dow);
+    const doiNum = Number(doi);
+    if (!aircraft || !dow || !doi || isNaN(dowNum) || isNaN(doiNum)) return null;
 
     try {
       return performCalculation({
         aircraft,
-        basicWeights: { dow, doi },
+        basicWeights: { dow: dowNum, doi: doiNum },
         passengers,
+        children: children || 0,
+        infants: infants || 0,
         cargo,
         fuel,
         takeoffConfig: effectiveConfig,
@@ -116,7 +150,7 @@ export function CalculationProvider({ children }) {
       console.error('Calculation error:', e);
       return null;
     }
-  }, [state.inputs, aircraft, effectiveConfig]);
+  }, [state.inputs, aircraft, effectiveConfig, state.lmcItems]);
 
   const validation = useMemo(() => {
     if (!results || !aircraft) return null;
@@ -130,9 +164,12 @@ export function CalculationProvider({ children }) {
 
   // Action creators
   const setAircraftId = useCallback((id) => dispatch({ type: 'SET_AIRCRAFT', payload: id }), []);
+  const setRegistration = useCallback((val) => dispatch({ type: 'SET_REGISTRATION', payload: val }), []);
   const setDow = useCallback((val) => dispatch({ type: 'SET_DOW', payload: val }), []);
   const setDoi = useCallback((val) => dispatch({ type: 'SET_DOI', payload: val }), []);
   const setPassengers = useCallback((zone, count) => dispatch({ type: 'SET_PASSENGERS', zone, payload: count }), []);
+  const setChildren = useCallback((val) => dispatch({ type: 'SET_CHILDREN', payload: val }), []);
+  const setInfants = useCallback((val) => dispatch({ type: 'SET_INFANTS', payload: val }), []);
   const setCargo = useCallback((hold, weight) => dispatch({ type: 'SET_CARGO', hold, payload: weight }), []);
   const setFuel = useCallback((tank, weight) => dispatch({ type: 'SET_FUEL', tank, payload: weight }), []);
   const setTakeoffConfig = useCallback((config) => dispatch({ type: 'SET_TAKEOFF_CONFIG', payload: config }), []);
@@ -143,6 +180,11 @@ export function CalculationProvider({ children }) {
   const removeLmcItem = useCallback((id) => dispatch({ type: 'REMOVE_LMC', payload: id }), []);
   const clearLmc = useCallback(() => dispatch({ type: 'CLEAR_LMC' }), []);
   const toggleLmcPanel = useCallback(() => dispatch({ type: 'TOGGLE_LMC_PANEL' }), []);
+  const resetAll = useCallback(() => {
+    sessionStorage.removeItem('737calc_inputs');
+    dispatch({ type: 'RESET_ALL' });
+  }, []);
+  const restoreInputs = useCallback((inputs, lmcItems) => dispatch({ type: 'RESTORE_INPUTS', payload: inputs, lmcItems }), []);
 
   const value = useMemo(() => ({
     currentStep: state.currentStep,
@@ -153,9 +195,12 @@ export function CalculationProvider({ children }) {
     results,
     validation,
     setAircraftId,
+    setRegistration,
     setDow,
     setDoi,
     setPassengers,
+    setChildren,
+    setInfants,
     setCargo,
     setFuel,
     setTakeoffConfig,
@@ -166,7 +211,9 @@ export function CalculationProvider({ children }) {
     removeLmcItem,
     clearLmc,
     toggleLmcPanel,
-  }), [state, aircraft, results, validation, setAircraftId, setDow, setDoi, setPassengers, setCargo, setFuel, setTakeoffConfig, goToStep, nextStep, prevStep, addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel]);
+    resetAll,
+    restoreInputs,
+  }), [state, aircraft, results, validation, setAircraftId, setRegistration, setDow, setDoi, setPassengers, setChildren, setInfants, setCargo, setFuel, setTakeoffConfig, goToStep, nextStep, prevStep, addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel, resetAll, restoreInputs]);
 
   return (
     <CalculationContext.Provider value={value}>
