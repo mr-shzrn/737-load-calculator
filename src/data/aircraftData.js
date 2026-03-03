@@ -36,6 +36,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
   },
   {
     id: '738-MS-12BC',
@@ -63,6 +64,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
   },
   {
     id: '738-MX-16BC',
@@ -90,6 +92,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
   },
   {
     id: '738-MX-12BC',
@@ -117,6 +120,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
   },
   {
     id: '738-ML-16BC',
@@ -144,6 +148,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
     notes: 'Short Field Performance',
   },
   {
@@ -172,6 +177,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
     notes: 'Short Field Performance',
   },
   {
@@ -200,6 +206,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 628.84,
     cargoTableSet: '738',
     fuelTableSet: '738',
+    wingTankMax: 7830,
     notes: 'Short Field Performance + Higher density economy',
   },
   {
@@ -227,6 +234,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 627.1,
     cargoTableSet: '737-max-8',
     fuelTableSet: '737-max-8',
+    wingTankMax: 7738,
     trimHandling: 'FMC',
     notes: 'Trim calculated by FMC, not manually',
   },
