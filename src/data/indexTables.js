@@ -262,6 +262,44 @@ export const CARGO_INDEX_737_800 = {
 };
 
 // =============================================================================
+// CARGO INDEX TABLE (737 MAX 8)
+// Source: MAS B737MAX LTS Tool V1.xlsm (MAS Ops Engineering, approved)
+// HOLD1 and HOLD4 differ from 737-800; HOLD2 and HOLD3 are identical.
+// NOTE: Fuel tables for MAX 8 not yet implemented (partial data); using 737-800
+//       fuel tables as a placeholder — flag for correction when full data available.
+// =============================================================================
+
+export const CARGO_INDEX_737_MAX_8 = {
+  HOLD1: [ // MAX 8 HOLD1: max 809 kg (differs from 737-800 max 888 kg)
+    { weight: [1, 47],     index: 0 },
+    { weight: [48, 142],   index: -1 },
+    { weight: [143, 238],  index: -2 },
+    { weight: [239, 333],  index: -3 },
+    { weight: [334, 428],  index: -4 },
+    { weight: [429, 524],  index: -5 },
+    { weight: [525, 619],  index: -6 },
+    { weight: [620, 714],  index: -7 },
+    { weight: [715, 809],  index: -8 },
+  ],
+
+  HOLD2: CARGO_INDEX_737_800.HOLD2, // Same as 737-800
+
+  HOLD3: CARGO_INDEX_737_800.HOLD3, // Same as 737-800
+
+  HOLD4: [ // MAX 8 HOLD4: max 763 kg (differs from 737-800 max 474 kg)
+    { weight: [1, 48],     index: 0 },
+    { weight: [49, 144],   index: 1 },
+    { weight: [145, 240],  index: 2 },
+    { weight: [241, 336],  index: 3 },
+    { weight: [337, 432],  index: 4 },
+    { weight: [433, 528],  index: 5 },
+    { weight: [529, 624],  index: 6 },
+    { weight: [625, 720],  index: 7 },
+    { weight: [721, 763],  index: 8 },
+  ],
+};
+
+// =============================================================================
 // FUEL INDEX TABLE (737-800)
 // =============================================================================
 
@@ -356,4 +394,10 @@ export const PASSENGER_TABLE_MAP = {
   '738-12BC-162EY': PASSENGER_INDEX_12BC_162EY,
   '738-16BC-150EY': PASSENGER_INDEX_16BC_150EY,
   '737-max-8': PASSENGER_INDEX_12BC_162EY, // MAX 8 uses same as 12BC/162EY
+};
+
+// Maps cargoTableSet identifiers to their actual cargo index tables
+export const CARGO_TABLE_MAP = {
+  '738': CARGO_INDEX_737_800,
+  '737-max-8': CARGO_INDEX_737_MAX_8,
 };

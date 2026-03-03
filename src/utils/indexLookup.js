@@ -1,6 +1,6 @@
 // Index lookup functions for passenger zones, cargo holds, and fuel
 import {
-  CARGO_INDEX_737_800,
+  CARGO_TABLE_MAP,
   FUEL_INDEX_737_800,
   PASSENGER_TABLE_MAP,
 } from '../data/indexTables.js';
@@ -42,12 +42,18 @@ export function getPassengerIndex(zone, paxCount, tableSet) {
  * Look up cargo index for a hold based on weight.
  * @param {string} hold - Hold identifier (HOLD1, HOLD2, HOLD3, HOLD4)
  * @param {number} weight - Cargo weight in kg
+ * @param {string} [cargoTableSet='738'] - Cargo table set identifier
  * @returns {number} Index value for the hold
  */
-export function getCargoIndex(hold, weight) {
+export function getCargoIndex(hold, weight, cargoTableSet = '738') {
   if (weight === 0) return 0;
 
-  const holdTable = CARGO_INDEX_737_800[hold];
+  const tableSet = CARGO_TABLE_MAP[cargoTableSet];
+  if (!tableSet) {
+    throw new Error(`Unknown cargo table set: ${cargoTableSet}`);
+  }
+
+  const holdTable = tableSet[hold];
   if (!holdTable) {
     throw new Error(`Unknown hold: ${hold}`);
   }
@@ -58,7 +64,7 @@ export function getCargoIndex(hold, weight) {
     }
   }
 
-  throw new Error(`Cargo weight ${weight} kg out of range for ${hold}`);
+  throw new Error(`Cargo weight ${weight} kg out of range for ${hold} (table: ${cargoTableSet})`);
 }
 
 /**
@@ -158,15 +164,16 @@ export function getAllPassengerIndices(passengers, tableSet) {
 /**
  * Get all cargo indices for all holds at once.
  * @param {Object} cargo - { HOLD1: number, HOLD2: number, HOLD3: number, HOLD4: number }
+ * @param {string} [cargoTableSet='738'] - Cargo table set identifier
  * @returns {Object} { HOLD1: { weight, index }, HOLD2: { weight, index }, ... }
  */
-export function getAllCargoIndices(cargo) {
+export function getAllCargoIndices(cargo, cargoTableSet = '738') {
   const result = {};
   for (const hold of ['HOLD1', 'HOLD2', 'HOLD3', 'HOLD4']) {
     const weight = cargo[hold] || 0;
     result[hold] = {
       weight,
-      index: getCargoIndex(hold, weight),
+      index: getCargoIndex(hold, weight, cargoTableSet),
     };
   }
   return result;

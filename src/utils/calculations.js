@@ -24,7 +24,7 @@ export function performCalculation(input) {
 
   // 1. Calculate all indices
   const passengerIndices = getAllPassengerIndices(passengers, aircraft.indexTableSet);
-  const cargoIndices = getAllCargoIndices(cargo);
+  const cargoIndices = getAllCargoIndices(cargo, aircraft.cargoTableSet || '738');
   const totalFuel = (fuel.wingTanks || 0) + (fuel.centerTank || 0);
   const fuelIndexResult = calculateFuelIndex(totalFuel, fuel.wingTanks, fuel.centerTank);
 
@@ -90,11 +90,12 @@ export function performCalculation(input) {
   const tripFuelEstimated = !tripFuelExplicit;
   const landingWeight = tow - tripFuel;
 
-  // 9. CG calculation (% MAC) - pass weight for accurate arm-based calculation
-  const zfmac = indexToMac(finalZfi, finalZfw);
-  const tomac = indexToMac(toi, tow);
+  // 9. CG calculation (% MAC) - use variant-specific LEMAC
+  const variantLemac = aircraft.lemac || LEMAC;
+  const zfmac = indexToMac(finalZfi, finalZfw, variantLemac);
+  const tomac = indexToMac(toi, tow, variantLemac);
   const landingIndex = totalFuel > 0 ? toi - fuelIndexResult.index * (tripFuel / totalFuel) : toi;
-  const landingMac = indexToMac(landingIndex, landingWeight);
+  const landingMac = indexToMac(landingIndex, landingWeight, variantLemac);
 
   // 10. Trim calculation
   const trimResult = calculateTrim(aircraft, toi, tow, takeoffConfig);
@@ -241,15 +242,15 @@ const MAC_LENGTH = 147.31;  // Mean Aerodynamic Chord length in inches
  * @param {number} [weight] - Weight in kg (for accurate calculation)
  * @returns {number} % MAC
  */
-export function indexToMac(indexValue, weight) {
+export function indexToMac(indexValue, weight, lemac = LEMAC) {
   if (weight && weight > 0) {
     const arm = ((indexValue - IU_OFFSET) * IU_SCALE / weight) + IU_REF_ARM;
-    return ((arm - LEMAC) / MAC_LENGTH) * 100;
+    return ((arm - lemac) / MAC_LENGTH) * 100;
   }
 
   // Fallback: linear approximation (less accurate without weight)
   // Calibrated so that index 45 ≈ 20% MAC at typical ZFW
-  return ((indexValue - IU_OFFSET) * IU_SCALE / 55000 + IU_REF_ARM - LEMAC) / MAC_LENGTH * 100;
+  return ((indexValue - IU_OFFSET) * IU_SCALE / 55000 + IU_REF_ARM - lemac) / MAC_LENGTH * 100;
 }
 
 /**
