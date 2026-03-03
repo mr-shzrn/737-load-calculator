@@ -198,16 +198,20 @@ export const PASSENGER_INDEX_16BC_150EY = {
 
 export const CARGO_INDEX_737_800 = {
   HOLD1: [
+    // Source: MAS B738 LTS (737-800 series)
+    // Note: max 888 kg for all variants EXCEPT 9M-MXY whose limit is 809 kg.
+    // Index is -9 for both 807–809 and 810–888; limit enforced as a validation
+    // warning at the registration level, not in the index lookup.
     { weight: [1, 47],     index: 0 },
-    { weight: [48, 141],   index: -1 },
-    { weight: [142, 236],  index: -2 },
-    { weight: [237, 330],  index: -3 },
-    { weight: [331, 425],  index: -4 },
-    { weight: [426, 519],  index: -5 },
-    { weight: [520, 613],  index: -6 },
-    { weight: [614, 708],  index: -7 },
-    { weight: [709, 802],  index: -8 },
-    { weight: [803, 888],  index: -9 },
+    { weight: [48, 142],   index: -1 },
+    { weight: [143, 237],  index: -2 },
+    { weight: [238, 332],  index: -3 },
+    { weight: [333, 426],  index: -4 },
+    { weight: [427, 521],  index: -5 },
+    { weight: [522, 616],  index: -6 },
+    { weight: [617, 711],  index: -7 },
+    { weight: [712, 806],  index: -8 },
+    { weight: [807, 888],  index: -9 },
   ],
 
   HOLD2: [
