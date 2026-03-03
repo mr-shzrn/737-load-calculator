@@ -4,6 +4,7 @@ import {
   FUEL_INDEX_737_800,
   PASSENGER_TABLE_MAP,
 } from '../data/indexTables.js';
+import { PASSENGER_WEIGHTS } from '../data/aircraftData.js';
 
 /**
  * Look up passenger index for a zone based on passenger count.
@@ -147,7 +148,7 @@ export function getAllPassengerIndices(passengers, tableSet) {
     const pax = passengers[zone] || 0;
     result[zone] = {
       pax,
-      weight: pax * 77, // CAD 6805 standard weight
+      weight: pax * PASSENGER_WEIGHTS.adult,
       index: getPassengerIndex(zone, pax, tableSet),
     };
   }
