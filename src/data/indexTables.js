@@ -385,6 +385,119 @@ export const FUEL_INDEX_737_800 = {
 };
 
 // =============================================================================
+// FUEL INDEX TABLE (737 MAX 8)
+// Source: MAS B737-8 LTS June 2023 (confirmed from official document)
+// Key differences from 737-800:
+//   - ALL_TANKS covers the full fuel range (0–21,961 kg) — no split needed
+//   - Wing tanks 1 & 2 max: 8,198 kg (combined)
+//   - Center tank max: 13,763 kg
+//   - Slightly different index values vs 737-800 (e.g. 3500 kg = 1, 6500 kg = 5)
+// =============================================================================
+
+export const FUEL_INDEX_737_MAX_8 = {
+  // PRIMARY: use this for total fuel (covers full range 0–21,961 kg)
+  ALL_TANKS: [
+    { weight: 500,   index: 0 },
+    { weight: 1000,  index: 0 },
+    { weight: 1500,  index: 0 },
+    { weight: 2000,  index: 0 },
+    { weight: 2500,  index: 0 },
+    { weight: 3000,  index: 0 },
+    { weight: 3500,  index: 1 },
+    { weight: 4000,  index: 1 },
+    { weight: 4500,  index: 1 },
+    { weight: 5000,  index: 2 },
+    { weight: 5500,  index: 3 },
+    { weight: 6000,  index: 3 },
+    { weight: 6500,  index: 5 },
+    { weight: 7000,  index: 6 },
+    { weight: 7500,  index: 7 },
+    { weight: 8000,  index: 8 },
+    { weight: 8500,  index: 7 },
+    { weight: 9000,  index: 6 },
+    { weight: 9500,  index: 6 },
+    { weight: 10000, index: 5 },
+    { weight: 10500, index: 4 },
+    { weight: 11000, index: 4 },
+    { weight: 11500, index: 3 },
+    { weight: 12000, index: 2 },
+    { weight: 12500, index: 2 },
+    { weight: 13000, index: 1 },
+    { weight: 13500, index: 0 },
+    { weight: 14000, index: 0 },
+    { weight: 14500, index: -1 },
+    { weight: 15000, index: -2 },
+    { weight: 15500, index: -2 },
+    { weight: 16000, index: -3 },
+    { weight: 16500, index: -3 },
+    { weight: 17000, index: -4 },
+    { weight: 17500, index: -5 },
+    { weight: 18000, index: -5 },
+    { weight: 18500, index: -6 },
+    { weight: 19000, index: -7 },
+    { weight: 19500, index: -7 },
+    { weight: 20000, index: -8 },
+    { weight: 20500, index: -9 },
+    { weight: 21000, index: -9 },
+    { weight: 21500, index: -10 },
+    { weight: 21961, index: -10 },
+  ],
+
+  // Wing tanks only (for LMC delta calculations; max 8,198 kg combined)
+  WING_TANKS_1_2: [
+    { weight: 500,  index: 0 },
+    { weight: 1000, index: 0 },
+    { weight: 1500, index: 0 },
+    { weight: 2000, index: 0 },
+    { weight: 2500, index: 0 },
+    { weight: 3000, index: 0 },
+    { weight: 3500, index: 1 },
+    { weight: 4000, index: 1 },
+    { weight: 4500, index: 1 },
+    { weight: 5000, index: 2 },
+    { weight: 5500, index: 3 },
+    { weight: 6000, index: 3 },
+    { weight: 6500, index: 5 },
+    { weight: 7000, index: 6 },
+    { weight: 7500, index: 7 },
+    { weight: 8000, index: 8 },
+    { weight: 8198, index: 8 },
+  ],
+
+  // Center tank only (for LMC delta calculations; max 13,763 kg)
+  CENTER_TANK: [
+    { weight: 500,   index: -1 },
+    { weight: 1000,  index: -1 },
+    { weight: 1500,  index: -2 },
+    { weight: 2000,  index: -3 },
+    { weight: 2500,  index: -3 },
+    { weight: 3000,  index: -4 },
+    { weight: 3500,  index: -5 },
+    { weight: 4000,  index: -5 },
+    { weight: 4500,  index: -6 },
+    { weight: 5000,  index: -7 },
+    { weight: 5500,  index: -7 },
+    { weight: 6000,  index: -8 },
+    { weight: 6500,  index: -9 },
+    { weight: 7000,  index: -9 },
+    { weight: 7500,  index: -10 },
+    { weight: 8000,  index: -10 },
+    { weight: 8500,  index: -11 },
+    { weight: 9000,  index: -12 },
+    { weight: 9500,  index: -12 },
+    { weight: 10000, index: -13 },
+    { weight: 10500, index: -13 },
+    { weight: 11000, index: -14 },
+    { weight: 11500, index: -15 },
+    { weight: 12000, index: -16 },
+    { weight: 12500, index: -16 },
+    { weight: 13000, index: -17 },
+    { weight: 13500, index: -18 },
+    { weight: 13763, index: -18 },
+  ],
+};
+
+// =============================================================================
 // TABLE SET MAPPING
 // =============================================================================
 
@@ -400,4 +513,10 @@ export const PASSENGER_TABLE_MAP = {
 export const CARGO_TABLE_MAP = {
   '738': CARGO_INDEX_737_800,
   '737-max-8': CARGO_INDEX_737_MAX_8,
+};
+
+// Maps fuelTableSet identifiers to their actual fuel index tables
+export const FUEL_TABLE_MAP = {
+  '738': FUEL_INDEX_737_800,
+  '737-max-8': FUEL_INDEX_737_MAX_8,
 };

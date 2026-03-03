@@ -26,7 +26,7 @@ export function performCalculation(input) {
   const passengerIndices = getAllPassengerIndices(passengers, aircraft.indexTableSet);
   const cargoIndices = getAllCargoIndices(cargo, aircraft.cargoTableSet || '738');
   const totalFuel = (fuel.wingTanks || 0) + (fuel.centerTank || 0);
-  const fuelIndexResult = calculateFuelIndex(totalFuel, fuel.wingTanks, fuel.centerTank);
+  const fuelIndexResult = calculateFuelIndex(totalFuel, fuel.wingTanks, fuel.centerTank, aircraft.fuelTableSet || '738');
 
   // 2. Calculate passenger totals
   const totalPax = Object.values(passengers).reduce((sum, p) => sum + (p || 0), 0);

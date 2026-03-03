@@ -1,7 +1,7 @@
 // Index lookup functions for passenger zones, cargo holds, and fuel
 import {
   CARGO_TABLE_MAP,
-  FUEL_INDEX_737_800,
+  FUEL_TABLE_MAP,
   PASSENGER_TABLE_MAP,
 } from '../data/indexTables.js';
 import { PASSENGER_WEIGHTS } from '../data/aircraftData.js';
@@ -68,78 +68,81 @@ export function getCargoIndex(hold, weight, cargoTableSet = '738') {
 }
 
 /**
- * Look up fuel index with linear interpolation between table entries.
- * The fuel table uses discrete weight points, so we interpolate for in-between values.
- * @param {string} fuelType - Fuel type (TOTAL_FUEL, WING_TANKS_1_2, CENTER_TANK)
+ * Interpolate within a fuel table array (discrete weight points).
+ * @param {Array} table - [{ weight, index }]
  * @param {number} weight - Fuel weight in kg
  * @returns {number} Interpolated index value
  */
-export function getFuelIndex(fuelType, weight) {
-  if (weight === 0) return 0;
-
-  const table = FUEL_INDEX_737_800[fuelType];
-  if (!table) {
-    throw new Error(`Unknown fuel type: ${fuelType}`);
-  }
-
-  // Exact match
+function interpolateFuelTable(table, weight) {
   const exact = table.find((row) => row.weight === weight);
   if (exact) return exact.index;
 
-  // Check boundaries
-  if (weight < table[0].weight) {
-    return table[0].index;
-  }
-  if (weight > table[table.length - 1].weight) {
-    return table[table.length - 1].index;
-  }
+  if (weight < table[0].weight) return table[0].index;
+  if (weight > table[table.length - 1].weight) return table[table.length - 1].index;
 
-  // Find bracketing values and interpolate
   for (let i = 0; i < table.length - 1; i++) {
     const lower = table[i];
     const upper = table[i + 1];
-
     if (weight >= lower.weight && weight <= upper.weight) {
-      const weightRange = upper.weight - lower.weight;
-      const indexRange = upper.index - lower.index;
-      const ratio = (weight - lower.weight) / weightRange;
-      return Math.round(lower.index + ratio * indexRange);
+      const ratio = (weight - lower.weight) / (upper.weight - lower.weight);
+      return Math.round(lower.index + ratio * (upper.index - lower.index));
     }
   }
 
-  throw new Error(`Fuel weight ${weight} kg out of range for ${fuelType}`);
+  return table[table.length - 1].index;
 }
 
 /**
- * Determine the correct fuel index calculation method based on total fuel weight.
- * For fuel <= 13,500 kg: use TOTAL_FUEL table directly.
- * For fuel > 13,500 kg: use WING_TANKS_1_2 + CENTER_TANK tables separately.
+ * Look up fuel index with linear interpolation between table entries.
+ * @param {string} fuelType - Table key (e.g. 'TOTAL_FUEL', 'ALL_TANKS', 'WING_TANKS_1_2', 'CENTER_TANK')
+ * @param {number} weight - Fuel weight in kg
+ * @param {string} [fuelTableSet='738'] - Fuel table set identifier
+ * @returns {number} Interpolated index value
+ */
+export function getFuelIndex(fuelType, weight, fuelTableSet = '738') {
+  if (weight === 0) return 0;
+
+  const fuelTables = FUEL_TABLE_MAP[fuelTableSet];
+  if (!fuelTables) throw new Error(`Unknown fuel table set: ${fuelTableSet}`);
+
+  const table = fuelTables[fuelType];
+  if (!table) throw new Error(`Unknown fuel type: ${fuelType} (table: ${fuelTableSet})`);
+
+  return interpolateFuelTable(table, weight);
+}
+
+/**
+ * Calculate fuel index for the given total fuel load.
+ *
+ * 737-800: uses TOTAL_FUEL table for ≤13,500 kg; splits into WING_TANKS_1_2 +
+ *   CENTER_TANK for higher loads.
+ * 737 MAX 8: uses ALL_TANKS table for the full range (0–21,961 kg); no split needed.
+ *
  * @param {number} totalFuel - Total fuel weight in kg
- * @param {number} wingFuel - Wing tank fuel weight (optional, for split calculation)
- * @param {number} centerFuel - Center tank fuel weight (optional, for split calculation)
+ * @param {number} [wingFuel=0] - Wing tank fuel (used for 737-800 split calculation)
+ * @param {number} [centerFuel=0] - Center tank fuel (used for 737-800 split calculation)
+ * @param {string} [fuelTableSet='738'] - Fuel table set identifier
  * @returns {{ index: number, method: string }} Fuel index and method used
  */
-export function calculateFuelIndex(totalFuel, wingFuel = 0, centerFuel = 0) {
-  if (totalFuel === 0) {
-    return { index: 0, method: 'none' };
+export function calculateFuelIndex(totalFuel, wingFuel = 0, centerFuel = 0, fuelTableSet = '738') {
+  if (totalFuel === 0) return { index: 0, method: 'none' };
+
+  const fuelTables = FUEL_TABLE_MAP[fuelTableSet];
+  if (!fuelTables) throw new Error(`Unknown fuel table set: ${fuelTableSet}`);
+
+  // MAX 8 (and any variant with ALL_TANKS): single table covers full range
+  if (fuelTables.ALL_TANKS) {
+    return { index: getFuelIndex('ALL_TANKS', totalFuel, fuelTableSet), method: 'all_tanks' };
   }
 
-  // If total fuel fits in the TOTAL_FUEL table range
+  // 737-800: split at 13,500 kg
   if (totalFuel <= 13500) {
-    const index = getFuelIndex('TOTAL_FUEL', totalFuel);
-    return { index, method: 'total' };
+    return { index: getFuelIndex('TOTAL_FUEL', totalFuel, fuelTableSet), method: 'total' };
   }
 
-  // For higher fuel loads, use split wing + center tank calculation
-  const wingIndex = wingFuel > 0 ? getFuelIndex('WING_TANKS_1_2', wingFuel) : 0;
-  const centerIndex = centerFuel > 0 ? getFuelIndex('CENTER_TANK', centerFuel) : 0;
-
-  return {
-    index: wingIndex + centerIndex,
-    method: 'split',
-    wingIndex,
-    centerIndex,
-  };
+  const wingIndex = wingFuel > 0 ? getFuelIndex('WING_TANKS_1_2', wingFuel, fuelTableSet) : 0;
+  const centerIndex = centerFuel > 0 ? getFuelIndex('CENTER_TANK', centerFuel, fuelTableSet) : 0;
+  return { index: wingIndex + centerIndex, method: 'split', wingIndex, centerIndex };
 }
 
 /**
