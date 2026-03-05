@@ -111,7 +111,7 @@ function Max8DowDoi() {
         <select
           value={inputs.registration || ''}
           onChange={handleRegChange}
-          className="field-input w-full px-4 py-3.5 text-base font-mono font-bold"
+          className="field-input w-full px-4 py-3.5 text-base"
         >
           <option value="">— Select registration —</option>
           {registrations.map(r => (
