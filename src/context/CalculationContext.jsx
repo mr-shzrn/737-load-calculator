@@ -10,6 +10,8 @@ let nextLmcId = 1;
 const DEFAULT_INPUTS = {
   aircraftId: '738-MX-16BC',
   registration: '',
+  crewConfig: '',
+  pantryType: '',
   dow: '',
   doi: '',
   passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
@@ -41,6 +43,10 @@ function reducer(state, action) {
       return { ...state, inputs: { ...state.inputs, aircraftId: action.payload } };
     case 'SET_REGISTRATION':
       return { ...state, inputs: { ...state.inputs, registration: action.payload } };
+    case 'SET_CREW_CONFIG':
+      return { ...state, inputs: { ...state.inputs, crewConfig: action.payload } };
+    case 'SET_PANTRY_TYPE':
+      return { ...state, inputs: { ...state.inputs, pantryType: action.payload } };
     case 'SET_DOW':
       return { ...state, inputs: { ...state.inputs, dow: action.payload } };
     case 'SET_DOI':
@@ -165,6 +171,8 @@ export function CalculationProvider({ children }) {
   // Action creators
   const setAircraftId = useCallback((id) => dispatch({ type: 'SET_AIRCRAFT', payload: id }), []);
   const setRegistration = useCallback((val) => dispatch({ type: 'SET_REGISTRATION', payload: val }), []);
+  const setCrewConfig = useCallback((val) => dispatch({ type: 'SET_CREW_CONFIG', payload: val }), []);
+  const setPantryType = useCallback((val) => dispatch({ type: 'SET_PANTRY_TYPE', payload: val }), []);
   const setDow = useCallback((val) => dispatch({ type: 'SET_DOW', payload: val }), []);
   const setDoi = useCallback((val) => dispatch({ type: 'SET_DOI', payload: val }), []);
   const setPassengers = useCallback((zone, count) => dispatch({ type: 'SET_PASSENGERS', zone, payload: count }), []);
@@ -196,6 +204,8 @@ export function CalculationProvider({ children }) {
     validation,
     setAircraftId,
     setRegistration,
+    setCrewConfig,
+    setPantryType,
     setDow,
     setDoi,
     setPassengers,
@@ -213,7 +223,7 @@ export function CalculationProvider({ children }) {
     toggleLmcPanel,
     resetAll,
     restoreInputs,
-  }), [state, aircraft, results, validation, setAircraftId, setRegistration, setDow, setDoi, setPassengers, setChildren, setInfants, setCargo, setFuel, setTakeoffConfig, goToStep, nextStep, prevStep, addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel, resetAll, restoreInputs]);
+  }), [state, aircraft, results, validation, setAircraftId, setRegistration, setCrewConfig, setPantryType, setDow, setDoi, setPassengers, setChildren, setInfants, setCargo, setFuel, setTakeoffConfig, goToStep, nextStep, prevStep, addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel, resetAll, restoreInputs]);
 
   return (
     <CalculationContext.Provider value={value}>

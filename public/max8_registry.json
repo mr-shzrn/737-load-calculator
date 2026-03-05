@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "updated": "2026-03-05",
+  "registrations": [
+    { "reg": "9M-MVA", "bew": 44351, "bew_iu": 41.67 },
+    { "reg": "9M-MVB", "bew": 44386, "bew_iu": 41.78 },
+    { "reg": "9M-MVC", "bew": 44305, "bew_iu": 41.57 },
+    { "reg": "9M-MVD", "bew": 44335, "bew_iu": 41.56 },
+    { "reg": "9M-MVE", "bew": 44352, "bew_iu": 41.67 },
+    { "reg": "9M-MVF", "bew": 44318, "bew_iu": 42.12 },
+    { "reg": "9M-MVG", "bew": 44326, "bew_iu": 41.45 },
+    { "reg": "9M-MVH", "bew": 44342, "bew_iu": 42.01 },
+    { "reg": "9M-MVI", "bew": 44319, "bew_iu": 42.12 },
+    { "reg": "9M-MVJ", "bew": 44329, "bew_iu": 41.90 },
+    { "reg": "9M-MVK", "bew": 44369, "bew_iu": 41.89 },
+    { "reg": "9M-MVL", "bew": 44296, "bew_iu": 42.01 },
+    { "reg": "9M-MVM", "bew": 44326, "bew_iu": 41.79 }
+  ]
+}

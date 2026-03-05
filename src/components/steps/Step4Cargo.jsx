@@ -3,21 +3,33 @@ import { useCalculation } from '../../context/CalculationContext.jsx';
 import Pill from '../shared/Pill.jsx';
 import NumericInput from '../shared/NumericInput.jsx';
 
-const HOLDS = [
-  { id: 'HOLD1', label: 'Hold 1 — Forward', max: 888 },
+const DEFAULT_HOLDS = [
+  { id: 'HOLD1', label: 'Hold 1 — Forward', max: 888  },
   { id: 'HOLD2', label: 'Hold 2 — Forward', max: 2670 },
-  { id: 'HOLD3', label: 'Hold 3 — Aft', max: 3157 },
-  { id: 'HOLD4', label: 'Hold 4 — Bulk', max: 474 },
+  { id: 'HOLD3', label: 'Hold 3 — Aft',     max: 3157 },
+  { id: 'HOLD4', label: 'Hold 4 — Bulk',    max: 474  },
 ];
+
+const HOLD_LABELS = {
+  HOLD1: 'Hold 1 — Forward',
+  HOLD2: 'Hold 2 — Forward',
+  HOLD3: 'Hold 3 — Aft',
+  HOLD4: 'Hold 4 — Bulk',
+};
 
 function fmt(n) {
   return n != null ? n.toLocaleString() : '---';
 }
 
 export default function Step4Cargo() {
-  const { inputs, setCargo } = useCalculation();
+  const { inputs, aircraft, setCargo } = useCalculation();
   const cargo = inputs.cargo;
   const totalCargo = Object.values(cargo).reduce((s, v) => s + (v || 0), 0);
+
+  // Use per-variant hold limits when present (e.g. 737 MAX 8), otherwise fall back to defaults
+  const holds = aircraft?.holdLimits
+    ? aircraft.holdLimits.map(({ id, max }) => ({ id, label: HOLD_LABELS[id] || id, max }))
+    : DEFAULT_HOLDS;
 
   return (
     <div className="fade-in max-w-xl">
@@ -25,7 +37,7 @@ export default function Step4Cargo() {
       <p className="text-[14px] muted mb-6">Weight per hold compartment.</p>
 
       <div className="space-y-3">
-        {HOLDS.map(({ id, label, max }) => {
+        {holds.map(({ id, label, max }) => {
           const weight = cargo[id] || 0;
           const pct = max > 0 ? Math.round((weight / max) * 100) : 0;
           const pillVariant = pct > 80 ? 'red' : pct > 60 ? 'amber' : 'navy';

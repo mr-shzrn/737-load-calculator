@@ -235,6 +235,12 @@ export const AIRCRAFT_VARIANTS = [
     cargoTableSet: '737-max-8',
     fuelTableSet: '737-max-8',
     wingTankMax: 7738,
+    holdLimits: [
+      { id: 'HOLD1', max: 809  },
+      { id: 'HOLD2', max: 2670 },
+      { id: 'HOLD3', max: 4086 },
+      { id: 'HOLD4', max: 763  },
+    ],
     trimHandling: 'FMC',
     notes: 'Trim calculated by FMC, not manually',
   },
