@@ -60,32 +60,26 @@ export const CG_ENVELOPE_737_800 = {
 };
 
 // CG Envelope for 737 MAX 8
-// NOTE: These values are estimated from Boeing patterns pending official MAX 8 LTS confirmation.
-// MAX 8 MTOW = 82,644 kg, MZFW = 65,952 kg. CG limits are similar to 737-800 but
-// extended to the higher MAX 8 weight range.
+// Source: Derived from MAS B737-8 LTS CG envelope chart (Screenshot 155815)
+//   using confirmed formula K=658.3, C=40000, D=45, LEMAC=628.0 in.
+//   Index unit boundary values read from chart at each weight, converted to %MAC.
+//   MTOW=82,644 kg | MZFW=65,952 kg
+//   NOTE: Chart-derived values — pending confirmation from official tabular LTS data.
 export const CG_ENVELOPE_737_MAX_8 = {
   zfw: [
-    { weight: 38000, forward: 14.0, aft: 33.0 },
-    { weight: 42000, forward: 14.0, aft: 33.0 },
-    { weight: 46000, forward: 14.0, aft: 33.0 },
-    { weight: 50000, forward: 14.0, aft: 33.0 },
-    { weight: 54000, forward: 14.5, aft: 33.0 },
-    { weight: 58000, forward: 15.0, aft: 33.0 },
-    { weight: 62000, forward: 15.5, aft: 32.5 },
-    { weight: 65952, forward: 16.0, aft: 32.0 },
+    { weight: 38000, forward:  9.0, aft: 31.0 },
+    { weight: 46000, forward:  9.5, aft: 30.5 },
+    { weight: 54000, forward: 10.0, aft: 30.0 },
+    { weight: 62000, forward: 10.5, aft: 29.5 },
+    { weight: 65952, forward: 11.0, aft: 29.0 },
   ],
   tow: [
-    { weight: 42000, forward: 14.0, aft: 33.0 },
-    { weight: 46000, forward: 14.0, aft: 33.0 },
-    { weight: 50000, forward: 14.0, aft: 33.0 },
-    { weight: 54000, forward: 14.0, aft: 33.0 },
-    { weight: 58000, forward: 14.0, aft: 33.0 },
-    { weight: 62000, forward: 14.5, aft: 33.0 },
-    { weight: 66000, forward: 15.0, aft: 33.0 },
-    { weight: 70000, forward: 15.5, aft: 32.5 },
-    { weight: 74000, forward: 16.0, aft: 32.0 },
-    { weight: 78000, forward: 16.5, aft: 31.5 },
-    { weight: 82644, forward: 17.0, aft: 31.0 },
+    { weight: 42000, forward:  9.5, aft: 29.5 },
+    { weight: 50000, forward: 10.0, aft: 29.0 },
+    { weight: 58000, forward: 10.5, aft: 28.5 },
+    { weight: 66000, forward: 11.0, aft: 28.0 },
+    { weight: 74000, forward: 12.0, aft: 27.5 },
+    { weight: 82644, forward: 13.0, aft: 27.0 },
   ],
 };
 
