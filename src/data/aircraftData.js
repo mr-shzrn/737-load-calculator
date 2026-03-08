@@ -234,7 +234,7 @@ export const AIRCRAFT_VARIANTS = [
     lemac: 627.1,
     cargoTableSet: '737-max-8',
     fuelTableSet: '737-max-8',
-    wingTankMax: 7738,
+    wingTankMax: 8198,
     holdLimits: [
       { id: 'HOLD1', max: 809  },
       { id: 'HOLD2', max: 2670 },

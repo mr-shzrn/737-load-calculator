@@ -269,8 +269,7 @@ export const CARGO_INDEX_737_800 = {
 // CARGO INDEX TABLE (737 MAX 8)
 // Source: MAS B737MAX LTS Tool V1.xlsm (MAS Ops Engineering, approved)
 // HOLD1 and HOLD4 differ from 737-800; HOLD2 and HOLD3 are identical.
-// NOTE: Fuel tables for MAX 8 not yet implemented (partial data); using 737-800
-//       fuel tables as a placeholder — flag for correction when full data available.
+// Fuel tables are in FUEL_INDEX_737_MAX_8 below — confirmed from MAS B737-8 LTS June 2023.
 // =============================================================================
 
 export const CARGO_INDEX_737_MAX_8 = {
@@ -390,7 +389,8 @@ export const FUEL_INDEX_737_800 = {
 
 // =============================================================================
 // FUEL INDEX TABLE (737 MAX 8)
-// Source: MAS B737-8 LTS June 2023 (confirmed from official document)
+// Source: MAS B737-8 LTS June 2023 — CONFIRMED from official document
+// Wing tanks 1+2 max: 8,198 kg  |  Center tank max: 13,763 kg  |  Total max: 21,961 kg
 // Key differences from 737-800:
 //   - ALL_TANKS covers the full fuel range (0–21,961 kg) — no split needed
 //   - Wing tanks 1 & 2 max: 8,198 kg (combined)
@@ -401,6 +401,7 @@ export const FUEL_INDEX_737_800 = {
 export const FUEL_INDEX_737_MAX_8 = {
   // PRIMARY: use this for total fuel (covers full range 0–21,961 kg)
   ALL_TANKS: [
+    { weight: 0,     index: 0 },
     { weight: 500,   index: 0 },
     { weight: 1000,  index: 0 },
     { weight: 1500,  index: 0 },
@@ -449,6 +450,7 @@ export const FUEL_INDEX_737_MAX_8 = {
 
   // Wing tanks only (for LMC delta calculations; max 8,198 kg combined)
   WING_TANKS_1_2: [
+    { weight: 0,    index: 0 },
     { weight: 500,  index: 0 },
     { weight: 1000, index: 0 },
     { weight: 1500, index: 0 },
@@ -470,6 +472,7 @@ export const FUEL_INDEX_737_MAX_8 = {
 
   // Center tank only (for LMC delta calculations; max 13,763 kg)
   CENTER_TANK: [
+    { weight: 0,     index: 0 },
     { weight: 500,   index: -1 },
     { weight: 1000,  index: -1 },
     { weight: 1500,  index: -2 },

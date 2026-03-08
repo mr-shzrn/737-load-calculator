@@ -166,8 +166,8 @@ export function validateCargoWeight(hold, weight) {
 export function validateFuelTanks(wingFuel, centerFuel, aircraft) {
   const errors = [];
   const wingMax = aircraft.wingTankMax || 7830;
-  const centerMax = aircraft.type === '737-MAX-8' ? 12990 : 13066;
-  const totalMax = aircraft.type === '737-MAX-8' ? 20728 : 20896;
+  const centerMax = aircraft.type === '737-MAX-8' ? 13763 : 13066;
+  const totalMax = aircraft.type === '737-MAX-8' ? 21961 : 20896;
   const total = wingFuel + centerFuel;
 
   if (wingFuel > wingMax) {
