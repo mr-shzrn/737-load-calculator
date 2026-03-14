@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { getAircraftById } from '../data/aircraftData.js';
 
 // Pad string to fixed width (left-aligned)
 function padR(str, len) {
@@ -72,21 +73,20 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   const dateStr = flightInfo.date || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '').toUpperCase();
   const timeStr = new Date().toISOString().slice(11, 16).replace(':', '') + 'Z';
 
-  line(`.${reg} ${dep}${arr} ${flightNum}    ${dateStr} ${timeStr}`);
-
-  setMono(8);
-  line('PRINTER MSG');
-  blankLine();
-
   // Item 1 — Reference
   line(`AN ${reg}/FI ${flightNum}/MA ---`);
   // Item 2 — Loadsheet type
+  setMono(8);
   line(`- LOADSHEET FINAL ${new Date().toISOString().slice(11, 15).replace(':', '')} EDN01`);
   // Item 3 — Flight / Date
+  setMono(8, 'bold');
   line(`${flightNum}    ${dateStr}`);
-  // Item 4 — Sector / Reg / Crew
+  // Item 4 — Sector / Reg / Crew / Config
   const crew = flightInfo.crew || '2/4';
-  line(`${dep} ${arr} ${reg}  ${crew}`);
+  const { aircraft: ac } = results;
+  const acVariant = getAircraftById(ac?.id || inputs?.aircraftId);
+  const config = acVariant?.config || '';
+  line(`${dep} ${arr} ${reg}  ${crew}  ${config}`);
 
   blankLine();
   hr();
@@ -94,70 +94,34 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   // ────────────────────────────────────────────
   // WEIGHTS
   // ────────────────────────────────────────────
-  const { weights, cg, trim, passengers, cargo, fuel, indices, aircraft: ac } = results;
+  const { weights, cg, trim, passengers, cargo, fuel, indices } = results;
   const allPass = validation?.allPass ?? true;
-  const mzfw = results._aircraft?.weights?.mzfw || inputs?.aircraft?.weights?.mzfw || 62731;
-  const mtow = results._aircraft?.weights?.mtow || inputs?.aircraft?.weights?.mtow || 79015;
-  const mlw  = results._aircraft?.weights?.mlw  || inputs?.aircraft?.weights?.mlw  || 66360;
+  const mzfw = acVariant?.weights?.mzfw ?? 62731;
+  const mtow = acVariant?.weights?.mtow ?? 79015;
+  const mlw  = acVariant?.weights?.mlw  ?? 66360;
 
   setMono(9, 'bold');
-  // Item 5 — ZFW / MAX ZFW
+  // ZFW / MAX ZFW
   line(`ZFW ${padL(n(weights.finalZfw), 6)}  MAX ${n(mzfw)}`);
-  // Item 6 — TOF
+  // TOF
   line(`TOF ${n(fuel.total)}`);
-  // Item 7 — TOW / MAX TOW (L = landing limited)
+  // Fuel split — indented sub-line
+  setMono(8);
+  line(`  WING ${n(fuel.wingTanks)}  CTR ${n(fuel.centerTank)}`);
+  setMono(9, 'bold');
+  // TOW / MAX TOW
   const limFlag = weights.limitingFactor === 'L' ? '  L' : weights.limitingFactor === 'Z' ? '  Z' : '';
   line(`TOW ${padL(n(weights.tow), 6)}  MAX ${n(mtow)}${limFlag}`);
-  // Item 8 — TIF
+  // TIF
   line(`TIF ${n(weights.tripFuel)}${weights.tripFuelEstimated ? ' (EST)' : ''}`);
-  // Item 9 — LAW / MAX LAW
+  // LAW / MAX LAW
   line(`LAW ${padL(n(weights.landingWeight), 6)}  MAX ${n(mlw)}${weights.limitingFactor === 'L' ? '  L' : ''}`);
-  // Item 10 — UNDLD
+  // UNDLD
   line(`UNDLD ${n(weights.undld)}`);
 
   blankLine();
 
-  // Item 11 — PAX breakdown (BC/EY/TTL)
-  const bcPax = passengers.zones?.OA?.count ?? inputs?.passengers?.OA ?? 0;
-  const eyPax = (passengers.totalPax || 0) - bcPax;
-  line(`PAX/${bcPax}/${eyPax}  TTL ${passengers.totalPax}`);
-  // Item 12 — Adults + infants (we don't track infants, show 0)
-  line(`PAX ${passengers.totalPax} PLUS 0`);
-
-  blankLine();
-  hr();
-
-  // ────────────────────────────────────────────
-  // INDICES
-  // ────────────────────────────────────────────
-  setMono(9);
-  // Item 13 — DOI
-  line(`DOI     ${d1(indices.doi)}`);
-  // Item 14 — DLI (Dead Load Index = cargo index total)
-  line(`DLI     ${d1(indices.allCargoIndex)}`);
-  // Item 15 — LIZFW
-  line(`LIZFW   ${d1(indices.finalZfi)}`);
-  // Item 16 — LITOW
-  line(`LITOW   ${d1(indices.toi)}`);
-
-  blankLine();
-
-  // Item 17/18 — MAC
-  line(`MAC2FW  ${d1(cg.zfmac)}`);
-  line(`MACTOW  ${d1(cg.tomac)}`);
-
-  blankLine();
-
-  // Item 19/20/21 — CG limits
-  setMono(8, 'bold');
-  line('        FWD-LMT  ACTL   AFT-LMT');
-  setMono(9);
-  line(`ZFMAC   ${padL(d1(cg.zfwFwdLmt), 6)}   ${padL(d1(cg.zfmac), 5)}   ${d1(cg.zfwAftLmt)}`);
-  line(`TOMAC   ${padL(d1(cg.towFwdLmt), 6)}   ${padL(d1(cg.tomac), 5)}   ${d1(cg.towAftLmt)}`);
-
-  blankLine();
-
-  // Item 22 — STAB
+  // STAB — immediately after weights
   let stabStr = '---';
   if (trim?.finalTrim != null) {
     const flaps = trim.flaps === 'F5' ? '1/5' : '1/15';
@@ -166,38 +130,43 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   } else if (trim?.message) {
     stabStr = 'FMC';
   }
-  setMono(9, 'bold');
   line(`STAB:${stabStr}`);
+
+  blankLine();
+
+  // PAX — single combined line with CHD/INF
+  const bcPax = passengers.zones?.OA?.count ?? inputs?.passengers?.OA ?? 0;
+  const eyPax = (passengers.totalPax || 0) - bcPax;
+  const chd = inputs?.children || 0;
+  const inf = inputs?.infants || 0;
+  line(`PAX/${bcPax}/${eyPax}  CHD ${chd}  INF ${inf}  TTL ${passengers.totalPax}`);
+
+  blankLine();
+
+  // Zone breakdown
+  setMono(9);
+  const pz = inputs?.passengers || {};
+  line(`A${pz.OA || 0} B${pz.OB || 0} C${pz.OC || 0} D${pz.OD || 0}`);
+
+  blankLine();
+
+  // Cargo — HOLD labels + total
+  const cg2 = inputs?.cargo || {};
+  line(`HOLD1 ${n(cg2.HOLD1 || 0)}  HOLD2 ${n(cg2.HOLD2 || 0)}  HOLD3 ${n(cg2.HOLD3 || 0)}  HOLD4 ${n(cg2.HOLD4 || 0)}`);
+  const cargoTotal = (cg2.HOLD1 || 0) + (cg2.HOLD2 || 0) + (cg2.HOLD3 || 0) + (cg2.HOLD4 || 0);
+  line(`CARGO TTL ${n(cargoTotal)} KG`);
 
   blankLine();
   hr();
 
   // ────────────────────────────────────────────
-  // ZONE / CARGO DETAILS
+  // CG TABLE
   // ────────────────────────────────────────────
+  setMono(8, 'bold');
+  line('        FWD-LMT  ACTL   AFT-LMT');
   setMono(9);
-  // Item 27 — Zone breakdown (A=OA, B=OB, C=OC, D=OD)
-  const pz = inputs?.passengers || {};
-  line(`A${pz.OA || 0} B${pz.OB || 0} C${pz.OC || 0} D${pz.OD || 0}`);
-  line('SEATROW TRIM');
-
-  blankLine();
-
-  // Item 29 — Dead load / cargo details
-  const cg2 = inputs?.cargo || {};
-  line(`${arr} FRE ${n(cg2.HOLD1 || 0)} POS ${n(cg2.HOLD2 || 0)} BAG ${n(cg2.HOLD3 || 0)} TRA ${n(cg2.HOLD4 || 0)}`);
-
-  blankLine();
-
-  // Item 30 — SI DOW
-  line(`SI DOW ${n(weights.dow)}`);
-  // Item 31 — DOI repeat
-  line(`DOI ${d1(indices.doi)}`);
-
-  blankLine();
-
-  // Item 35 — LOAD IN CPTS
-  line(`LOAD IN CPTS 0/${n(cg2.HOLD1 || 0)} 1/${n(cg2.HOLD2 || 0)} 2/${n(cg2.HOLD3 || 0)} 3/${n(cg2.HOLD4 || 0)}`);
+  line(`ZFMAC   ${padL(d1(cg.zfwFwdLmt), 7)}  ${padL(d1(cg.zfmac), 4)}   ${d1(cg.zfwAftLmt)}`);
+  line(`TOMAC   ${padL(d1(cg.towFwdLmt), 7)}  ${padL(d1(cg.tomac), 4)}   ${d1(cg.towAftLmt)}`);
 
   blankLine();
   hr();
