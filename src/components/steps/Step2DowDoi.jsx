@@ -123,6 +123,11 @@ function Max8DowDoi() {
             BEW: {fmt(selectedReg.bew)} kg &nbsp;·&nbsp; BEW IU: {selectedReg.bew_iu.toFixed(2)}
           </p>
         )}
+        {selectedReg?.temp && (
+          <div className="mt-2 rounded-lg px-4 py-2.5 text-[11px]" style={{ background: 'rgba(200,80,0,0.08)', border: '1px solid rgba(200,80,0,0.35)', color: 'rgba(180,60,0,0.9)' }}>
+            <strong>TEMP DATA — FERRY USE ONLY.</strong> BEW IU estimated from Boeing delivery manifest. Verify against MAS Aircraft Weighing Report before scheduled ops.
+          </div>
+        )}
       </div>
 
       {/* Crew Config */}
