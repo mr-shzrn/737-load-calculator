@@ -9,7 +9,7 @@ export function useAircraftRegistry() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/max8_registry.json', { cache: 'no-cache' })
+    fetch(`${import.meta.env.BASE_URL}max8_registry.json`, { cache: 'no-cache' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         if (!cancelled && Array.isArray(data?.registrations) && data.registrations.length > 0) {
