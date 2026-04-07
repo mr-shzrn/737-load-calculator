@@ -58,8 +58,32 @@ function signedFmt(n, decimals = 2) {
 
 // ── MAX 8 path ──────────────────────────────────────────────────────────────
 
+function StepperInput({ value, onChange, min = -99, label, unit = '' }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[12px] heading font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          className="w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center"
+          style={{ background: 'rgba(0,51,102,0.12)', color: 'rgba(0,51,102,0.8)' }}
+        >−</button>
+        <span className="w-8 text-center font-mono font-bold text-[15px] heading">{value >= 0 ? `+${value}` : value}</span>
+        <button
+          type="button"
+          onClick={() => onChange(value + 1)}
+          className="w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center"
+          style={{ background: 'rgba(0,51,102,0.12)', color: 'rgba(0,51,102,0.8)' }}
+        >+</button>
+        {unit && <span className="text-[11px] muted w-8">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
 function Max8DowDoi() {
-  const { inputs, setRegistration, setCrewConfig, setPantryType, setDow, setDoi, setDeliveryMode } = useCalculation();
+  const { inputs, setRegistration, setCrewConfig, setPantryType, setDow, setDoi, setDeliveryMode, setDeliveryAdjustment } = useCalculation();
   const registrations = useAircraftRegistry();
 
   const [manualOverride, setManualOverride] = useState(false);
@@ -141,35 +165,103 @@ function Max8DowDoi() {
       </div>
 
       {/* Delivery mode locked panel */}
-      {inputs.deliveryMode && selectedReg?.deliveryPreset && (
-        <div className="rounded-xl px-5 py-4 space-y-3" style={{ background: 'rgba(0,51,102,0.07)', border: '1.5px solid rgba(0,51,102,0.25)' }}>
-          <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,51,102,0.7)' }}>
-            DELIVERY LOAD LOCKED — {selectedReg.deliveryPreset.manifest}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOW (= ZFW)</div>
-              <div className="text-2xl font-mono font-bold heading">{selectedReg.deliveryPreset.dow.toLocaleString()} kg</div>
+      {inputs.deliveryMode && selectedReg?.deliveryPreset && (() => {
+        const preset = selectedReg.deliveryPreset;
+        const extraCrew = inputs.deliveryExtraCrew ?? 0;
+        const extraPax  = inputs.deliveryExtraPax  ?? 0;
+        const bagKg     = inputs.deliveryBagKg     ?? 15;
+        const crewWtDelta = extraCrew * (85 + bagKg);
+        const paxWtDelta  = extraPax  * (77 + bagKg);
+        const totalWtDelta = crewWtDelta + paxWtDelta;
+        const iuDelta = (crewWtDelta * (44.0  - 658.3) / 40000)
+                      + (paxWtDelta  * (550.0 - 658.3) / 40000);
+        const effectiveDow = preset.dow + totalWtDelta;
+        const effectiveDoi = Math.round(preset.doi + iuDelta);
+
+        const update = (ec, ep, bk) => setDeliveryAdjustment(ec, ep, bk, preset);
+
+        return (
+          <div className="rounded-xl px-5 py-4 space-y-4" style={{ background: 'rgba(0,51,102,0.07)', border: '1.5px solid rgba(0,51,102,0.25)' }}>
+            <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,51,102,0.7)' }}>
+              DELIVERY LOAD LOCKED — {preset.manifest}
             </div>
-            <div className="text-center">
-              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOI (= ZFI)</div>
-              <div className="text-2xl font-mono font-bold heading">{selectedReg.deliveryPreset.doi}</div>
+
+            {/* Baseline summary */}
+            <div className="text-[11px] muted">
+              Manifest baseline: 3 flight crew · 4 pax · ZFW 45,501 kg
+            </div>
+
+            {/* Adjustments */}
+            <div className="space-y-3 pt-1">
+              <StepperInput
+                label="Extra flight crew"
+                value={extraCrew}
+                min={-3}
+                onChange={v => update(v, extraPax, bagKg)}
+              />
+              <StepperInput
+                label="Extra pax / observers"
+                value={extraPax}
+                min={-4}
+                onChange={v => update(extraCrew, v, bagKg)}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12px] heading font-medium">Bag weight / person</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={bagKg}
+                    min={0}
+                    max={50}
+                    onChange={e => update(extraCrew, extraPax, Math.max(0, Number(e.target.value) || 0))}
+                    className="field-input w-16 px-2 py-1.5 text-center font-mono text-[13px]"
+                  />
+                  <span className="text-[11px] muted">kg</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Delta summary */}
+            {totalWtDelta !== 0 && (
+              <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(0,51,102,0.06)', border: '1px solid rgba(0,51,102,0.15)' }}>
+                <div className="flex justify-between">
+                  <span className="muted">Weight delta</span>
+                  <span className="font-mono font-bold heading">{totalWtDelta >= 0 ? '+' : ''}{totalWtDelta} kg</span>
+                </div>
+                <div className="flex justify-between mt-0.5">
+                  <span className="muted">Index delta</span>
+                  <span className="font-mono font-bold heading">{iuDelta >= 0 ? '+' : ''}{iuDelta.toFixed(2)} IU</span>
+                </div>
+                <div className="text-[10px] muted mt-1">
+                  Crew at cockpit arm (44 in) · Pax at cabin arm (550 in)
+                </div>
+              </div>
+            )}
+
+            {/* Effective DOW / DOI */}
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="text-center">
+                <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOW (ZFW)</div>
+                <div className="text-2xl font-mono font-bold heading">{effectiveDow.toLocaleString()} kg</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOI (ZFI)</div>
+                <div className="text-2xl font-mono font-bold heading">{effectiveDoi}</div>
+              </div>
+            </div>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => setDeliveryMode(false)}
+                className="text-[11px] underline muted"
+              >
+                Exit delivery mode
+              </button>
             </div>
           </div>
-          <div className="text-[10px] muted text-center">
-            ZFW 45,501 kg · 15.1% MAC — per signed manifest. Pax and cargo steps are locked.
-          </div>
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setDeliveryMode(false)}
-              className="text-[11px] underline muted"
-            >
-              Exit delivery mode
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Crew / Pantry / Manual — hidden in delivery mode */}
       {!inputs.deliveryMode && (

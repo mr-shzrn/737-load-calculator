@@ -15,6 +15,9 @@ const DEFAULT_INPUTS = {
   dow: '',
   doi: '',
   deliveryMode: false,
+  deliveryExtraCrew: 0,
+  deliveryExtraPax: 0,
+  deliveryBagKg: 15,
   passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
   children: 0,
   infants: 0,
@@ -37,6 +40,26 @@ const initialState = {
   lmcPanelOpen: false,
   inputs: loadFromSession(),
 };
+
+// Arms derived from signed delivery manifest (1N715 / 06-APR-2026) moment analysis.
+// Crew & flightbags: 12,672 kg·in / 288 kg = 44.0 in (cockpit).
+// Passengers: 195,800 kg·in / 356 kg = 550.0 in (mid-cabin).
+const DELIVERY_CREW_ARM = 44.0;
+const DELIVERY_PAX_ARM  = 550.0;
+const IU_REF_ARM = 658.3;
+const IU_SCALE   = 40000;
+
+function computeDeliveryDowDoi(preset, extraCrew, extraPax, bagKg) {
+  const crewWt   = extraCrew * (85 + bagKg);
+  const paxWt    = extraPax  * (77 + bagKg);
+  const weightDelta = crewWt + paxWt;
+  const iuDelta  = crewWt * (DELIVERY_CREW_ARM - IU_REF_ARM) / IU_SCALE
+                 + paxWt  * (DELIVERY_PAX_ARM  - IU_REF_ARM) / IU_SCALE;
+  return {
+    dow: preset.dow + weightDelta,
+    doi: Math.round(preset.doi + iuDelta),
+  };
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -105,6 +128,9 @@ function reducer(state, action) {
           inputs: {
             ...state.inputs,
             deliveryMode: true,
+            deliveryExtraCrew: 0,
+            deliveryExtraPax: 0,
+            deliveryBagKg: 15,
             dow: action.preset.dow,
             doi: action.preset.doi,
             passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
@@ -119,6 +145,9 @@ function reducer(state, action) {
           inputs: {
             ...state.inputs,
             deliveryMode: false,
+            deliveryExtraCrew: 0,
+            deliveryExtraPax: 0,
+            deliveryBagKg: 15,
             dow: '',
             doi: '',
             crewConfig: '',
@@ -130,6 +159,21 @@ function reducer(state, action) {
           },
         };
       }
+    case 'SET_DELIVERY_ADJUSTMENT': {
+      const { extraCrew, extraPax, bagKg, preset } = action.payload;
+      const { dow, doi } = computeDeliveryDowDoi(preset, extraCrew, extraPax, bagKg);
+      return {
+        ...state,
+        inputs: {
+          ...state.inputs,
+          deliveryExtraCrew: extraCrew,
+          deliveryExtraPax:  extraPax,
+          deliveryBagKg:     bagKg,
+          dow,
+          doi,
+        },
+      };
+    }
     case 'RESET_ALL':
       return { ...initialState, inputs: DEFAULT_INPUTS, currentStep: 1, lmcItems: [] };
     case 'RESTORE_INPUTS':
@@ -203,6 +247,7 @@ export function CalculationProvider({ children }) {
 
   // Action creators
   const setDeliveryMode = useCallback((on, preset) => dispatch({ type: 'SET_DELIVERY_MODE', payload: on, preset }), []);
+  const setDeliveryAdjustment = useCallback((extraCrew, extraPax, bagKg, preset) => dispatch({ type: 'SET_DELIVERY_ADJUSTMENT', payload: { extraCrew, extraPax, bagKg, preset } }), []);
   const setAircraftId = useCallback((id) => dispatch({ type: 'SET_AIRCRAFT', payload: id }), []);
   const setRegistration = useCallback((val) => dispatch({ type: 'SET_REGISTRATION', payload: val }), []);
   const setCrewConfig = useCallback((val) => dispatch({ type: 'SET_CREW_CONFIG', payload: val }), []);
@@ -237,6 +282,7 @@ export function CalculationProvider({ children }) {
     results,
     validation,
     setDeliveryMode,
+    setDeliveryAdjustment,
     setAircraftId,
     setRegistration,
     setCrewConfig,
