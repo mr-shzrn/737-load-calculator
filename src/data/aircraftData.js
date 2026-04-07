@@ -232,6 +232,7 @@ export const AIRCRAFT_VARIANTS = [
     totalSeats: 174,
     indexTableSet: '737-max-8',
     lemac: 628.0,
+    macLength: 149.5,
     cargoTableSet: '737-max-8',
     fuelTableSet: '737-max-8',
     wingTankMax: 8198,

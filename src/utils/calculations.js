@@ -93,12 +93,13 @@ export function performCalculation(input) {
   const tripFuelEstimated = !tripFuelExplicit;
   const landingWeight = tow - tripFuel;
 
-  // 9. CG calculation (% MAC) - use variant-specific LEMAC
+  // 9. CG calculation (% MAC) - use variant-specific LEMAC and MAC length
   const variantLemac = aircraft.lemac;
-  const zfmac = indexToMac(finalZfi, finalZfw, variantLemac);
-  const tomac = indexToMac(toi, tow, variantLemac);
+  const variantMacLength = aircraft.macLength;
+  const zfmac = indexToMac(finalZfi, finalZfw, variantLemac, variantMacLength);
+  const tomac = indexToMac(toi, tow, variantLemac, variantMacLength);
   const landingIndex = totalFuel > 0 ? toi - fuelIndexResult.index * (tripFuel / totalFuel) : toi;
-  const landingMac = indexToMac(landingIndex, landingWeight, variantLemac);
+  const landingMac = indexToMac(landingIndex, landingWeight, variantLemac, variantMacLength);
 
   // 10. Trim calculation
   const trimResult = calculateTrim(aircraft, toi, tow, takeoffConfig);
@@ -249,15 +250,14 @@ const MAC_LENGTH = 147.31;  // Mean Aerodynamic Chord length in inches
  * @param {number} [weight] - Weight in kg (for accurate calculation)
  * @returns {number} % MAC
  */
-export function indexToMac(indexValue, weight, lemac = LEMAC) {
+export function indexToMac(indexValue, weight, lemac = LEMAC, macLength = MAC_LENGTH) {
   if (weight && weight > 0) {
     const arm = ((indexValue - IU_OFFSET) * IU_SCALE / weight) + IU_REF_ARM;
-    return ((arm - lemac) / MAC_LENGTH) * 100;
+    return ((arm - lemac) / macLength) * 100;
   }
 
   // Fallback: linear approximation (less accurate without weight)
-  // Calibrated so that index 45 ≈ 20% MAC at typical ZFW
-  return ((indexValue - IU_OFFSET) * IU_SCALE / 55000 + IU_REF_ARM - lemac) / MAC_LENGTH * 100;
+  return ((indexValue - IU_OFFSET) * IU_SCALE / 55000 + IU_REF_ARM - lemac) / macLength * 100;
 }
 
 /**

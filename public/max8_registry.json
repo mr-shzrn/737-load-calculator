@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-03-05",
+  "updated": "2026-04-07",
   "registrations": [
     { "reg": "9M-MVA", "bew": 44351, "bew_iu": 41.67 },
     { "reg": "9M-MVB", "bew": 44386, "bew_iu": 41.78 },
@@ -15,6 +15,6 @@
     { "reg": "9M-MVK", "bew": 44369, "bew_iu": 41.89 },
     { "reg": "9M-MVL", "bew": 44296, "bew_iu": 42.01 },
     { "reg": "9M-MVM", "bew": 44326, "bew_iu": 41.79 },
-    { "reg": "9M-MVO", "bew": 44115, "bew_iu": 39.02, "temp": true, "note": "BEW IU estimated from Boeing delivery manifest (L/N 9511, S/N 43358). Pending MAS Aircraft Weighing Report. Ferry flight use only.", "deliveryPreset": { "manifest": "1N715 / 06-APR-2026", "dow": 45501, "doi": 36, "note": "ZFW locked from signed delivery manifest. Fuel only changes." } }
+    { "reg": "9M-MVO", "bew": 44375, "bew_iu": 41.67, "deliveryPreset": { "manifest": "1N715 / 06-APR-2026", "dow": 45501, "doi": 36, "note": "ZFW locked from signed delivery manifest. Fuel only changes." } }
   ]
 }
