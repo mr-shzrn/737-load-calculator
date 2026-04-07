@@ -59,7 +59,7 @@ function signedFmt(n, decimals = 2) {
 // ── MAX 8 path ──────────────────────────────────────────────────────────────
 
 function Max8DowDoi() {
-  const { inputs, setRegistration, setCrewConfig, setPantryType, setDow, setDoi } = useCalculation();
+  const { inputs, setRegistration, setCrewConfig, setPantryType, setDow, setDoi, setDeliveryMode } = useCalculation();
   const registrations = useAircraftRegistry();
 
   const [manualOverride, setManualOverride] = useState(false);
@@ -128,130 +128,175 @@ function Max8DowDoi() {
             <strong>TEMP DATA — FERRY USE ONLY.</strong> BEW IU estimated from Boeing delivery manifest. Verify against MAS Aircraft Weighing Report before scheduled ops.
           </div>
         )}
-      </div>
-
-      {/* Crew Config */}
-      <div>
-        <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-          Crew Configuration
-        </label>
-        <select
-          value={inputs.crewConfig || ''}
-          onChange={e => setCrewConfig(e.target.value)}
-          className="field-input w-full px-4 py-3.5 text-base"
-        >
-          <option value="">— Select crew —</option>
-          {MAX_8_CREW_CONFIGS.map(c => (
-            <option key={c.id} value={c.id}>{c.label}</option>
-          ))}
-        </select>
-        {selectedCrew && (
-          <p className="text-[11px] muted mt-1.5 font-mono text-center">
-            +{fmt(selectedCrew.weight)} kg &nbsp;·&nbsp; {signedFmt(selectedCrew.index)} IU
-          </p>
+        {selectedReg?.deliveryPreset && !inputs.deliveryMode && (
+          <button
+            type="button"
+            onClick={() => setDeliveryMode(true, selectedReg.deliveryPreset)}
+            className="mt-2 w-full rounded-lg px-4 py-2.5 text-[12px] font-bold text-center"
+            style={{ background: 'rgba(0,51,102,0.10)', border: '1.5px dashed rgba(0,51,102,0.4)', color: 'rgba(0,51,102,0.85)' }}
+          >
+            USE DELIVERY LOAD — {selectedReg.deliveryPreset.manifest}
+          </button>
         )}
       </div>
 
-      {/* Pantry Type */}
-      <div>
-        <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-          Pantry Type
-        </label>
-        <select
-          value={inputs.pantryType || ''}
-          onChange={e => setPantryType(e.target.value)}
-          className="field-input w-full px-4 py-3.5 text-base"
-        >
-          <option value="">— Select pantry —</option>
-          {MAX_8_PANTRY_OPTIONS.map(p => (
-            <option key={p.id} value={p.id}>{p.label} ({p.weight} kg)</option>
-          ))}
-        </select>
-        {selectedPantry && (
-          <p className="text-[11px] muted mt-1.5 font-mono text-center">
-            +{fmt(selectedPantry.weight)} kg &nbsp;·&nbsp; {signedFmt(selectedPantry.index)} IU
-          </p>
-        )}
-      </div>
-
-      {/* Computed DOW/DOI panel */}
-      {allSelected && !manualOverride && (
-        <div
-          className="rounded-xl px-5 py-4"
-          style={{ background: 'rgba(0,51,102,0.05)', border: '1.5px solid rgba(0,51,102,0.15)' }}
-        >
+      {/* Delivery mode locked panel */}
+      {inputs.deliveryMode && selectedReg?.deliveryPreset && (
+        <div className="rounded-xl px-5 py-4 space-y-3" style={{ background: 'rgba(0,51,102,0.07)', border: '1.5px solid rgba(0,51,102,0.25)' }}>
+          <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,51,102,0.7)' }}>
+            DELIVERY LOAD LOCKED — {selectedReg.deliveryPreset.manifest}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOW</div>
-              <div className="text-2xl font-mono font-bold heading">{fmt(computedDow)} kg</div>
-              <div className="text-[10px] muted mt-0.5">
-                BEW {fmt(selectedReg.bew)} + Crew {fmt(selectedCrew.weight)} + Pantry {fmt(selectedPantry.weight)}
-              </div>
+              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOW (= ZFW)</div>
+              <div className="text-2xl font-mono font-bold heading">{selectedReg.deliveryPreset.dow.toLocaleString()} kg</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOI</div>
-              <div className="text-2xl font-mono font-bold heading">{computedDoi}</div>
-              <div className="text-[10px] muted mt-0.5">
-                {selectedReg.bew_iu.toFixed(2)} {signedFmt(selectedCrew.index)} {signedFmt(selectedPantry.index)} = {computedDoiRaw.toFixed(2)} → {computedDoi}
-              </div>
+              <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOI (= ZFI)</div>
+              <div className="text-2xl font-mono font-bold heading">{selectedReg.deliveryPreset.doi}</div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Manual override toggle */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setManualOverride(v => !v);
-            if (manualOverride && allSelected) {
-              // Re-apply computed values when turning override off
-              setDow(computedDow);
-              setDoi(computedDoi);
-            }
-          }}
-          className="text-[11px] underline muted"
-        >
-          {manualOverride ? 'Use auto-computed DOW/DOI' : 'Override DOW/DOI manually'}
-        </button>
-      </div>
-
-      {/* Manual entry fields — shown when override is on, or when not all selectors are filled */}
-      {(manualOverride || !allSelected) && (
-        <div className="grid grid-cols-2 gap-5">
-          <div>
-            <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5 flex items-center">
-              DOW (kg)
-              <HelpIcon tooltip="Dry Operating Weight. Auto-computed from BEW + crew + pantry when all selectors are filled. Override here if needed." />
-            </label>
-            <input
-              type="number"
-              value={inputs.dow ?? ''}
-              onChange={e => setDow(e.target.value ? Number(e.target.value) : '')}
-              className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
-              placeholder="44674"
-            />
+          <div className="text-[10px] muted text-center">
+            ZFW 45,501 kg · 15.1% MAC — per signed manifest. Pax and cargo steps are locked.
           </div>
-          <div>
-            <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5 flex items-center">
-              DOI (Index)
-              <HelpIcon tooltip="Dry Operating Index. Auto-computed from BEW IU + crew IU + pantry IU, rounded to nearest integer." />
-            </label>
-            <input
-              type="number"
-              value={inputs.doi ?? ''}
-              onChange={e => setDoi(e.target.value ? Number(e.target.value) : '')}
-              className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
-              placeholder="37"
-            />
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setDeliveryMode(false)}
+              className="text-[11px] underline muted"
+            >
+              Exit delivery mode
+            </button>
           </div>
         </div>
       )}
 
-      <div className="rounded-lg px-4 py-2.5 text-[11px] muted" style={{ background: 'rgba(0,51,102,0.04)', border: '1px solid rgba(0,51,102,0.08)' }}>
-        Cabin crew index delta is currently set to 0 (TBD — pending CG Manual sourcing). Tech crew confirmed from LTS Tool V1.
-      </div>
+      {/* Crew / Pantry / Manual — hidden in delivery mode */}
+      {!inputs.deliveryMode && (
+        <>
+          {/* Crew Config */}
+          <div>
+            <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
+              Crew Configuration
+            </label>
+            <select
+              value={inputs.crewConfig || ''}
+              onChange={e => setCrewConfig(e.target.value)}
+              className="field-input w-full px-4 py-3.5 text-base"
+            >
+              <option value="">— Select crew —</option>
+              {MAX_8_CREW_CONFIGS.map(c => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+            {selectedCrew && (
+              <p className="text-[11px] muted mt-1.5 font-mono text-center">
+                +{fmt(selectedCrew.weight)} kg &nbsp;·&nbsp; {signedFmt(selectedCrew.index)} IU
+              </p>
+            )}
+          </div>
+
+          {/* Pantry Type */}
+          <div>
+            <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
+              Pantry Type
+            </label>
+            <select
+              value={inputs.pantryType || ''}
+              onChange={e => setPantryType(e.target.value)}
+              className="field-input w-full px-4 py-3.5 text-base"
+            >
+              <option value="">— Select pantry —</option>
+              {MAX_8_PANTRY_OPTIONS.map(p => (
+                <option key={p.id} value={p.id}>{p.label} ({p.weight} kg)</option>
+              ))}
+            </select>
+            {selectedPantry && (
+              <p className="text-[11px] muted mt-1.5 font-mono text-center">
+                +{fmt(selectedPantry.weight)} kg &nbsp;·&nbsp; {signedFmt(selectedPantry.index)} IU
+              </p>
+            )}
+          </div>
+
+          {/* Computed DOW/DOI panel */}
+          {allSelected && !manualOverride && (
+            <div
+              className="rounded-xl px-5 py-4"
+              style={{ background: 'rgba(0,51,102,0.05)', border: '1.5px solid rgba(0,51,102,0.15)' }}
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOW</div>
+                  <div className="text-2xl font-mono font-bold heading">{fmt(computedDow)} kg</div>
+                  <div className="text-[10px] muted mt-0.5">
+                    BEW {fmt(selectedReg.bew)} + Crew {fmt(selectedCrew.weight)} + Pantry {fmt(selectedPantry.weight)}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] font-bold field-label uppercase tracking-wider mb-1">DOI</div>
+                  <div className="text-2xl font-mono font-bold heading">{computedDoi}</div>
+                  <div className="text-[10px] muted mt-0.5">
+                    {selectedReg.bew_iu.toFixed(2)} {signedFmt(selectedCrew.index)} {signedFmt(selectedPantry.index)} = {computedDoiRaw.toFixed(2)} → {computedDoi}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Manual override toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setManualOverride(v => !v);
+                if (manualOverride && allSelected) {
+                  setDow(computedDow);
+                  setDoi(computedDoi);
+                }
+              }}
+              className="text-[11px] underline muted"
+            >
+              {manualOverride ? 'Use auto-computed DOW/DOI' : 'Override DOW/DOI manually'}
+            </button>
+          </div>
+
+          {/* Manual entry fields */}
+          {(manualOverride || !allSelected) && (
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5 flex items-center">
+                  DOW (kg)
+                  <HelpIcon tooltip="Dry Operating Weight. Auto-computed from BEW + crew + pantry when all selectors are filled. Override here if needed." />
+                </label>
+                <input
+                  type="number"
+                  value={inputs.dow ?? ''}
+                  onChange={e => setDow(e.target.value ? Number(e.target.value) : '')}
+                  className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
+                  placeholder="44674"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5 flex items-center">
+                  DOI (Index)
+                  <HelpIcon tooltip="Dry Operating Index. Auto-computed from BEW IU + crew IU + pantry IU, rounded to nearest integer." />
+                </label>
+                <input
+                  type="number"
+                  value={inputs.doi ?? ''}
+                  onChange={e => setDoi(e.target.value ? Number(e.target.value) : '')}
+                  className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch"
+                  placeholder="37"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg px-4 py-2.5 text-[11px] muted" style={{ background: 'rgba(0,51,102,0.04)', border: '1px solid rgba(0,51,102,0.08)' }}>
+            Cabin crew index delta is currently set to 0 (TBD — pending CG Manual sourcing). Tech crew confirmed from LTS Tool V1.
+          </div>
+        </>
+      )}
     </div>
   );
 }

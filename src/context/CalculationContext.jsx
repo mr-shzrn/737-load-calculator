@@ -14,6 +14,7 @@ const DEFAULT_INPUTS = {
   pantryType: '',
   dow: '',
   doi: '',
+  deliveryMode: false,
   passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
   children: 0,
   infants: 0,
@@ -97,6 +98,38 @@ function reducer(state, action) {
       return { ...state, lmcItems: [] };
     case 'TOGGLE_LMC_PANEL':
       return { ...state, lmcPanelOpen: !state.lmcPanelOpen };
+    case 'SET_DELIVERY_MODE':
+      if (action.payload) {
+        return {
+          ...state,
+          inputs: {
+            ...state.inputs,
+            deliveryMode: true,
+            dow: action.preset.dow,
+            doi: action.preset.doi,
+            passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
+            children: 0,
+            infants: 0,
+            cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
+          },
+        };
+      } else {
+        return {
+          ...state,
+          inputs: {
+            ...state.inputs,
+            deliveryMode: false,
+            dow: '',
+            doi: '',
+            crewConfig: '',
+            pantryType: '',
+            passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
+            children: 0,
+            infants: 0,
+            cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
+          },
+        };
+      }
     case 'RESET_ALL':
       return { ...initialState, inputs: DEFAULT_INPUTS, currentStep: 1, lmcItems: [] };
     case 'RESTORE_INPUTS':
@@ -169,6 +202,7 @@ export function CalculationProvider({ children }) {
   }, [results, aircraft]);
 
   // Action creators
+  const setDeliveryMode = useCallback((on, preset) => dispatch({ type: 'SET_DELIVERY_MODE', payload: on, preset }), []);
   const setAircraftId = useCallback((id) => dispatch({ type: 'SET_AIRCRAFT', payload: id }), []);
   const setRegistration = useCallback((val) => dispatch({ type: 'SET_REGISTRATION', payload: val }), []);
   const setCrewConfig = useCallback((val) => dispatch({ type: 'SET_CREW_CONFIG', payload: val }), []);
@@ -202,6 +236,7 @@ export function CalculationProvider({ children }) {
     aircraft,
     results,
     validation,
+    setDeliveryMode,
     setAircraftId,
     setRegistration,
     setCrewConfig,

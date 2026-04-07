@@ -15,7 +15,7 @@ export const MAX_8_REGISTRATIONS = [
   { reg: '9M-MVK', bew: 44369, bew_iu: 41.89 },
   { reg: '9M-MVL', bew: 44296, bew_iu: 42.01 },
   { reg: '9M-MVM', bew: 44326, bew_iu: 41.79 },
-  { reg: '9M-MVO', bew: 44115, bew_iu: 39.02, temp: true, note: 'BEW IU estimated from Boeing delivery manifest (L/N 9511, S/N 43358). Pending MAS Aircraft Weighing Report. Ferry flight use only.' },
+  { reg: '9M-MVO', bew: 44115, bew_iu: 39.02, temp: true, note: 'BEW IU estimated from Boeing delivery manifest (L/N 9511, S/N 43358). Pending MAS Aircraft Weighing Report. Ferry flight use only.', deliveryPreset: { manifest: '1N715 / 06-APR-2026', dow: 45501, doi: 36, note: 'ZFW locked from signed delivery manifest. Fuel only changes.' } },
 ];
 
 // Pantry options — sourced from B737MAX LTS Tool V1.xlsm (DOWDOI sheet, rows 12–20)

@@ -23,6 +23,26 @@ function fmt(n) {
 
 export default function Step4Cargo() {
   const { inputs, aircraft, setCargo } = useCalculation();
+
+  if (inputs.deliveryMode) {
+    return (
+      <div className="fade-in max-w-xl">
+        <h2 className="text-xl font-bold heading mb-1">Cargo Loading</h2>
+        <div className="mt-4 rounded-xl px-5 py-6 text-center" style={{ background: 'rgba(0,51,102,0.07)', border: '1.5px solid rgba(0,51,102,0.25)' }}>
+          <div className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(0,51,102,0.7)' }}>DELIVERY MODE — LOAD LOCKED</div>
+          <div className="text-[13px] muted">Cargo fixed per signed manifest 1N715 / 06-APR-2026.</div>
+          <div className="mt-3 font-mono text-[13px] heading space-y-1">
+            <div>Baggage (Main Deck): 189 kg</div>
+            <div>Cargo (Aft Compartment): 231 kg</div>
+            <div>Cargo (Main Deck): 19 kg</div>
+            <div>Documents (Main Deck): 27 kg</div>
+          </div>
+          <div className="mt-2 text-[11px] muted">Modelled as ZFW in Step 2. No hold entry required.</div>
+        </div>
+      </div>
+    );
+  }
+
   const cargo = inputs.cargo;
   const totalCargo = Object.values(cargo).reduce((s, v) => s + (v || 0), 0);
 
