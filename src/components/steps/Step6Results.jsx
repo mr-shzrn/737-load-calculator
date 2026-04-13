@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useCalculation } from '../../context/CalculationContext.jsx';
 import { CG_ENVELOPE_737_800, CG_ENVELOPE_737_MAX_8 } from '../../data/trimCorrections.js';
 import Pill from '../shared/Pill.jsx';
+import DeliveryQRCode from './DeliveryQRCode.jsx';
 
 function fmt(n) {
   return n != null ? n.toLocaleString() : '---';
@@ -382,6 +383,19 @@ export default function Step6Results() {
           <span className="muted text-[13px] font-mono">{cg.towAftLmt ?? '---'}</span>
         </div>
       </div>
+
+      {/* Delivery QR — shown when delivery mode active */}
+      {inputs.deliveryMode && inputs.deliveryData && (
+        <div className="live-panel p-4" style={{ border: '1px solid rgba(0,51,102,0.2)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full" style={{ background: '#003366' }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#003366' }}>
+              Delivery Load — {inputs.deliveryData.manifest}
+            </span>
+          </div>
+          <DeliveryQRCode deliveryData={inputs.deliveryData} collapsed={true} />
+        </div>
+      )}
 
       {/* Weight Breakdown */}
       <div className="live-panel p-5">

@@ -2,6 +2,11 @@ import React, { createContext, useContext, useReducer, useMemo, useCallback, use
 import { AIRCRAFT_VARIANTS } from '../data/aircraftData.js';
 import { performCalculation } from '../utils/calculations.js';
 import { validateAll } from '../utils/validation.js';
+import {
+  computeFlightDowDoi,
+  saveDeliveryToStorage,
+  clearDeliveryFromStorage,
+} from '../utils/deliveryMode.js';
 
 const CalculationContext = createContext(null);
 
@@ -15,6 +20,7 @@ const DEFAULT_INPUTS = {
   dow: '',
   doi: '',
   deliveryMode: false,
+  deliveryData: null,      // { v, reg, manifest, dow, doi, crew, pax }
   deliveryExtraCrew: 0,
   deliveryExtraPax: 0,
   deliveryBagKg: 15,
@@ -41,25 +47,13 @@ const initialState = {
   inputs: loadFromSession(),
 };
 
-// Arms derived from signed delivery manifest (1N715 / 06-APR-2026) moment analysis.
-// Crew & flightbags: 12,672 kg·in / 288 kg = 44.0 in (cockpit).
-// Passengers: 195,800 kg·in / 356 kg = 550.0 in (mid-cabin).
-const DELIVERY_CREW_ARM = 44.0;
-const DELIVERY_PAX_ARM  = 550.0;
-const IU_REF_ARM = 658.3;
-const IU_SCALE   = 40000;
-
-function computeDeliveryDowDoi(preset, extraCrew, extraPax, bagKg) {
-  const crewWt   = extraCrew * (85 + bagKg);
-  const paxWt    = extraPax  * (77 + bagKg);
-  const weightDelta = crewWt + paxWt;
-  const iuDelta  = crewWt * (DELIVERY_CREW_ARM - IU_REF_ARM) / IU_SCALE
-                 + paxWt  * (DELIVERY_PAX_ARM  - IU_REF_ARM) / IU_SCALE;
-  return {
-    dow: preset.dow + weightDelta,
-    doi: Math.round(preset.doi + iuDelta),
-  };
-}
+// Locked delivery inputs — cargo and pax zeroed; everything baked into DOW from manifest ZFW.
+const DELIVERY_LOCKED = {
+  passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
+  children: 0,
+  infants: 0,
+  cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
+};
 
 function reducer(state, action) {
   switch (action.type) {
@@ -76,41 +70,17 @@ function reducer(state, action) {
     case 'SET_DOI':
       return { ...state, inputs: { ...state.inputs, doi: action.payload } };
     case 'SET_PASSENGERS':
-      return {
-        ...state,
-        inputs: {
-          ...state.inputs,
-          passengers: { ...state.inputs.passengers, [action.zone]: action.payload },
-        },
-      };
+      return { ...state, inputs: { ...state.inputs, passengers: { ...state.inputs.passengers, [action.zone]: action.payload } } };
     case 'SET_CHILDREN':
       return { ...state, inputs: { ...state.inputs, children: action.payload } };
     case 'SET_INFANTS':
       return { ...state, inputs: { ...state.inputs, infants: action.payload } };
     case 'SET_CARGO':
-      return {
-        ...state,
-        inputs: {
-          ...state.inputs,
-          cargo: { ...state.inputs.cargo, [action.hold]: action.payload },
-        },
-      };
+      return { ...state, inputs: { ...state.inputs, cargo: { ...state.inputs.cargo, [action.hold]: action.payload } } };
     case 'SET_FUEL':
-      return {
-        ...state,
-        inputs: {
-          ...state.inputs,
-          fuel: { ...state.inputs.fuel, [action.tank]: action.payload },
-        },
-      };
+      return { ...state, inputs: { ...state.inputs, fuel: { ...state.inputs.fuel, [action.tank]: action.payload } } };
     case 'SET_TAKEOFF_CONFIG':
-      return {
-        ...state,
-        inputs: {
-          ...state.inputs,
-          takeoffConfig: { ...state.inputs.takeoffConfig, ...action.payload },
-        },
-      };
+      return { ...state, inputs: { ...state.inputs, takeoffConfig: { ...state.inputs.takeoffConfig, ...action.payload } } };
     case 'SET_STEP':
       return { ...state, currentStep: action.payload };
     case 'ADD_LMC':
@@ -121,59 +91,65 @@ function reducer(state, action) {
       return { ...state, lmcItems: [] };
     case 'TOGGLE_LMC_PANEL':
       return { ...state, lmcPanelOpen: !state.lmcPanelOpen };
-    case 'SET_DELIVERY_MODE':
-      if (action.payload) {
-        return {
-          ...state,
-          inputs: {
-            ...state.inputs,
-            deliveryMode: true,
-            deliveryExtraCrew: 0,
-            deliveryExtraPax: 0,
-            deliveryBagKg: 15,
-            dow: action.preset.dow,
-            doi: action.preset.doi,
-            passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
-            children: 0,
-            infants: 0,
-            cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
-          },
-        };
-      } else {
-        return {
-          ...state,
-          inputs: {
-            ...state.inputs,
-            deliveryMode: false,
-            deliveryExtraCrew: 0,
-            deliveryExtraPax: 0,
-            deliveryBagKg: 15,
-            dow: '',
-            doi: '',
-            crewConfig: '',
-            pantryType: '',
-            passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
-            children: 0,
-            infants: 0,
-            cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
-          },
-        };
-      }
-    case 'SET_DELIVERY_ADJUSTMENT': {
-      const { extraCrew, extraPax, bagKg, preset } = action.payload;
-      const { dow, doi } = computeDeliveryDowDoi(preset, extraCrew, extraPax, bagKg);
+
+    // ── SET_DELIVERY_LOAD ────────────────────────────────────────────────────
+    // Used by: DeliverySetupModal (new entry), DeliveryScanner (QR scan),
+    //          restored from localStorage, and legacy registry presets.
+    case 'SET_DELIVERY_LOAD': {
+      const { data, extraCrew = 0, extraPax = 0, bagKg = 15 } = action.payload;
+      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg);
+      saveDeliveryToStorage(data);
       return {
         ...state,
         inputs: {
           ...state.inputs,
+          deliveryMode: true,
+          deliveryData: data,
           deliveryExtraCrew: extraCrew,
-          deliveryExtraPax:  extraPax,
-          deliveryBagKg:     bagKg,
+          deliveryExtraPax: extraPax,
+          deliveryBagKg: bagKg,
           dow,
           doi,
+          ...DELIVERY_LOCKED,
         },
       };
     }
+
+    // ── SET_DELIVERY_ADJUSTMENT ──────────────────────────────────────────────
+    // Per-flight delta: extra crew / pax / bag weight on top of manifest baseline.
+    case 'SET_DELIVERY_ADJUSTMENT': {
+      const { extraCrew, extraPax, bagKg } = action.payload;
+      const data = state.inputs.deliveryData;
+      if (!data) return state;
+      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg);
+      return {
+        ...state,
+        inputs: { ...state.inputs, deliveryExtraCrew: extraCrew, deliveryExtraPax: extraPax, deliveryBagKg: bagKg, dow, doi },
+      };
+    }
+
+    // ── EXIT_DELIVERY_MODE ───────────────────────────────────────────────────
+    case 'EXIT_DELIVERY_MODE': {
+      const reg = state.inputs.registration;
+      if (reg) clearDeliveryFromStorage(reg);
+      return {
+        ...state,
+        inputs: {
+          ...state.inputs,
+          deliveryMode: false,
+          deliveryData: null,
+          deliveryExtraCrew: 0,
+          deliveryExtraPax: 0,
+          deliveryBagKg: 15,
+          dow: '',
+          doi: '',
+          crewConfig: '',
+          pantryType: '',
+          ...DELIVERY_LOCKED,
+        },
+      };
+    }
+
     case 'RESET_ALL':
       return { ...initialState, inputs: DEFAULT_INPUTS, currentStep: 1, lmcItems: [] };
     case 'RESTORE_INPUTS':
@@ -186,11 +162,8 @@ function reducer(state, action) {
 export function CalculationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Persist inputs to sessionStorage on every change
   useEffect(() => {
-    try {
-      sessionStorage.setItem('737calc_inputs', JSON.stringify(state.inputs));
-    } catch (_) { /* ignore */ }
+    try { sessionStorage.setItem('737calc_inputs', JSON.stringify(state.inputs)); } catch (_) {}
   }, [state.inputs]);
 
   const aircraft = useMemo(
@@ -198,7 +171,6 @@ export function CalculationProvider({ children }) {
     [state.inputs.aircraftId]
   );
 
-  // Sync thrust when aircraft changes and current thrust is unavailable
   const effectiveConfig = useMemo(() => {
     if (!aircraft) return state.inputs.takeoffConfig;
     const available = aircraft.availableThrust || [];
@@ -216,7 +188,6 @@ export function CalculationProvider({ children }) {
     const dowNum = Number(dow);
     const doiNum = Number(doi);
     if (!aircraft || !dow || !doi || isNaN(dowNum) || isNaN(doiNum)) return null;
-
     try {
       return performCalculation({
         aircraft,
@@ -237,41 +208,56 @@ export function CalculationProvider({ children }) {
 
   const validation = useMemo(() => {
     if (!results || !aircraft) return null;
-    try {
-      return validateAll(results, aircraft);
-    } catch (e) {
-      console.error('Validation error:', e);
-      return null;
-    }
+    try { return validateAll(results, aircraft); }
+    catch (e) { console.error('Validation error:', e); return null; }
   }, [results, aircraft]);
 
-  // Action creators
-  const setDeliveryMode = useCallback((on, preset) => dispatch({ type: 'SET_DELIVERY_MODE', payload: on, preset }), []);
-  const setDeliveryAdjustment = useCallback((extraCrew, extraPax, bagKg, preset) => dispatch({ type: 'SET_DELIVERY_ADJUSTMENT', payload: { extraCrew, extraPax, bagKg, preset } }), []);
-  const setAircraftId = useCallback((id) => dispatch({ type: 'SET_AIRCRAFT', payload: id }), []);
-  const setRegistration = useCallback((val) => dispatch({ type: 'SET_REGISTRATION', payload: val }), []);
-  const setCrewConfig = useCallback((val) => dispatch({ type: 'SET_CREW_CONFIG', payload: val }), []);
-  const setPantryType = useCallback((val) => dispatch({ type: 'SET_PANTRY_TYPE', payload: val }), []);
-  const setDow = useCallback((val) => dispatch({ type: 'SET_DOW', payload: val }), []);
-  const setDoi = useCallback((val) => dispatch({ type: 'SET_DOI', payload: val }), []);
-  const setPassengers = useCallback((zone, count) => dispatch({ type: 'SET_PASSENGERS', zone, payload: count }), []);
-  const setChildren = useCallback((val) => dispatch({ type: 'SET_CHILDREN', payload: val }), []);
-  const setInfants = useCallback((val) => dispatch({ type: 'SET_INFANTS', payload: val }), []);
-  const setCargo = useCallback((hold, weight) => dispatch({ type: 'SET_CARGO', hold, payload: weight }), []);
-  const setFuel = useCallback((tank, weight) => dispatch({ type: 'SET_FUEL', tank, payload: weight }), []);
-  const setTakeoffConfig = useCallback((config) => dispatch({ type: 'SET_TAKEOFF_CONFIG', payload: config }), []);
-  const goToStep = useCallback((n) => dispatch({ type: 'SET_STEP', payload: n }), []);
-  const nextStep = useCallback(() => dispatch({ type: 'SET_STEP', payload: Math.min(state.currentStep + 1, 6) }), [state.currentStep]);
-  const prevStep = useCallback(() => dispatch({ type: 'SET_STEP', payload: Math.max(state.currentStep - 1, 1) }), [state.currentStep]);
-  const addLmcItem = useCallback((item) => dispatch({ type: 'ADD_LMC', payload: item }), []);
-  const removeLmcItem = useCallback((id) => dispatch({ type: 'REMOVE_LMC', payload: id }), []);
-  const clearLmc = useCallback(() => dispatch({ type: 'CLEAR_LMC' }), []);
-  const toggleLmcPanel = useCallback(() => dispatch({ type: 'TOGGLE_LMC_PANEL' }), []);
-  const resetAll = useCallback(() => {
-    sessionStorage.removeItem('737calc_inputs');
-    dispatch({ type: 'RESET_ALL' });
+  // ── Action creators ────────────────────────────────────────────────────────
+  const setDeliveryLoad        = useCallback((data, extraCrew, extraPax, bagKg) =>
+    dispatch({ type: 'SET_DELIVERY_LOAD', payload: { data, extraCrew, extraPax, bagKg } }), []);
+  const setDeliveryAdjustment  = useCallback((extraCrew, extraPax, bagKg) =>
+    dispatch({ type: 'SET_DELIVERY_ADJUSTMENT', payload: { extraCrew, extraPax, bagKg } }), []);
+  const exitDeliveryMode       = useCallback(() => dispatch({ type: 'EXIT_DELIVERY_MODE' }), []);
+
+  // Legacy alias used by the registry-preset path (kept for compat)
+  const setDeliveryMode = useCallback((on, preset) => {
+    if (on && preset) {
+      const data = {
+        v: 1,
+        reg: preset.reg || '',
+        manifest: preset.manifest,
+        dow: preset.dow,
+        doi: preset.doi,
+        crew: preset.crew ?? 3,
+        pax: preset.pax ?? 4,
+      };
+      dispatch({ type: 'SET_DELIVERY_LOAD', payload: { data } });
+    } else {
+      dispatch({ type: 'EXIT_DELIVERY_MODE' });
+    }
   }, []);
-  const restoreInputs = useCallback((inputs, lmcItems) => dispatch({ type: 'RESTORE_INPUTS', payload: inputs, lmcItems }), []);
+
+  const setAircraftId  = useCallback((id)       => dispatch({ type: 'SET_AIRCRAFT',      payload: id }),    []);
+  const setRegistration= useCallback((val)      => dispatch({ type: 'SET_REGISTRATION',  payload: val }),   []);
+  const setCrewConfig  = useCallback((val)      => dispatch({ type: 'SET_CREW_CONFIG',   payload: val }),   []);
+  const setPantryType  = useCallback((val)      => dispatch({ type: 'SET_PANTRY_TYPE',   payload: val }),   []);
+  const setDow         = useCallback((val)      => dispatch({ type: 'SET_DOW',           payload: val }),   []);
+  const setDoi         = useCallback((val)      => dispatch({ type: 'SET_DOI',           payload: val }),   []);
+  const setPassengers  = useCallback((zone, n)  => dispatch({ type: 'SET_PASSENGERS',    zone, payload: n }),[]);
+  const setChildren    = useCallback((val)      => dispatch({ type: 'SET_CHILDREN',      payload: val }),   []);
+  const setInfants     = useCallback((val)      => dispatch({ type: 'SET_INFANTS',       payload: val }),   []);
+  const setCargo       = useCallback((hold, w)  => dispatch({ type: 'SET_CARGO',         hold, payload: w }),[]);
+  const setFuel        = useCallback((tank, w)  => dispatch({ type: 'SET_FUEL',          tank, payload: w }),[]);
+  const setTakeoffConfig=useCallback((cfg)      => dispatch({ type: 'SET_TAKEOFF_CONFIG',payload: cfg }),   []);
+  const goToStep       = useCallback((n)        => dispatch({ type: 'SET_STEP',          payload: n }),     []);
+  const nextStep       = useCallback(()         => dispatch({ type: 'SET_STEP', payload: Math.min(state.currentStep + 1, 6) }), [state.currentStep]);
+  const prevStep       = useCallback(()         => dispatch({ type: 'SET_STEP', payload: Math.max(state.currentStep - 1, 1) }), [state.currentStep]);
+  const addLmcItem     = useCallback((item)     => dispatch({ type: 'ADD_LMC',           payload: item }),  []);
+  const removeLmcItem  = useCallback((id)       => dispatch({ type: 'REMOVE_LMC',        payload: id }),    []);
+  const clearLmc       = useCallback(()         => dispatch({ type: 'CLEAR_LMC' }),                         []);
+  const toggleLmcPanel = useCallback(()         => dispatch({ type: 'TOGGLE_LMC_PANEL' }),                  []);
+  const resetAll       = useCallback(() => { sessionStorage.removeItem('737calc_inputs'); dispatch({ type: 'RESET_ALL' }); }, []);
+  const restoreInputs  = useCallback((inp, lmc) => dispatch({ type: 'RESTORE_INPUTS', payload: inp, lmcItems: lmc }), []);
 
   const value = useMemo(() => ({
     currentStep: state.currentStep,
@@ -281,8 +267,10 @@ export function CalculationProvider({ children }) {
     aircraft,
     results,
     validation,
-    setDeliveryMode,
+    setDeliveryLoad,
     setDeliveryAdjustment,
+    exitDeliveryMode,
+    setDeliveryMode,
     setAircraftId,
     setRegistration,
     setCrewConfig,
@@ -304,7 +292,14 @@ export function CalculationProvider({ children }) {
     toggleLmcPanel,
     resetAll,
     restoreInputs,
-  }), [state, aircraft, results, validation, setAircraftId, setRegistration, setCrewConfig, setPantryType, setDow, setDoi, setPassengers, setChildren, setInfants, setCargo, setFuel, setTakeoffConfig, goToStep, nextStep, prevStep, addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel, resetAll, restoreInputs]);
+  }), [state, aircraft, results, validation,
+    setDeliveryLoad, setDeliveryAdjustment, exitDeliveryMode, setDeliveryMode,
+    setAircraftId, setRegistration, setCrewConfig, setPantryType,
+    setDow, setDoi, setPassengers, setChildren, setInfants,
+    setCargo, setFuel, setTakeoffConfig,
+    goToStep, nextStep, prevStep,
+    addLmcItem, removeLmcItem, clearLmc, toggleLmcPanel,
+    resetAll, restoreInputs]);
 
   return (
     <CalculationContext.Provider value={value}>

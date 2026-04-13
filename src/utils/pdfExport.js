@@ -46,6 +46,11 @@ function computePageHeight(results, validation, flightInfo) {
   }
   h += BL + HR;
 
+  // Delivery QR section
+  if (flightInfo.deliveryMode) {
+    h += BL + L + 29 + L + BL + HR;  // blank + header + QR(28)+gap + scan text + blank + hr
+  }
+
   h += L;                              // PREPARED BY
   if (flightInfo.licence)    h += L;
   if (flightInfo.supervisor) h += L;
@@ -59,7 +64,7 @@ function computePageHeight(results, validation, flightInfo) {
   return Math.ceil(h);
 }
 
-export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {}) {
+export async function generateLoadsheetPDF(results, validation, inputs, flightInfo = {}) {
   const pageW = 148;               // ACARS narrow width (mm)
   const lm    = 8;                 // left margin
   const W     = pageW - 2 * lm;   // content width = 132 mm
@@ -294,6 +299,33 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
 
   blankLine();
   hr();
+
+  // ────────────────────────────────────────────
+  // DELIVERY QR CODE (delivery mode only)
+  // ────────────────────────────────────────────
+  if (inputs.deliveryMode && inputs.deliveryData) {
+    blankLine();
+    setMono(8, 'bold');
+    line(`DELIVERY: ${inputs.deliveryData.manifest}`);
+
+    const { encodeDelivery } = await import('./deliveryMode.js');
+    const { default: QRCode } = await import('qrcode');
+    const qrDataUrl = await QRCode.toDataURL(encodeDelivery(inputs.deliveryData), {
+      width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' },
+    });
+
+    const qrSize = 28;
+    const qrX = (pageW - qrSize) / 2;
+    doc.addImage(qrDataUrl, 'PNG', qrX, y, qrSize, qrSize);
+    y += qrSize + 1;
+
+    setLabel(7);
+    doc.setTextColor(140, 140, 140);
+    doc.text('Scan on another device to restore this delivery load', pageW / 2, y, { align: 'center' });
+    y += 4.5;
+    blankLine();
+    hr();
+  }
 
   // ────────────────────────────────────────────
   // PREPARED BY / CREW DETAILS

@@ -48,7 +48,7 @@ export default function ExportModal({ onClose }) {
 
     // Lazy-load jsPDF only when needed
     const { generateLoadsheetPDF } = await import('../utils/pdfExport.js');
-    generateLoadsheetPDF(results, validation, inputs, {
+    await generateLoadsheetPDF(results, validation, inputs, {
       flightNumber: flightNumber || undefined,
       registration: registration || undefined,
       date,
@@ -60,6 +60,7 @@ export default function ExportModal({ onClose }) {
       supervisor: supervisor || undefined,
       staffId: staffId || undefined,
       picName: picName || undefined,
+      deliveryMode: inputs.deliveryMode || false,
     });
     onClose();
   };
