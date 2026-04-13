@@ -21,11 +21,51 @@ function d1(val) {
   return val != null ? Number(val).toFixed(1) : '---';
 }
 
+// ── Pre-calculate page height from variable content ──
+// Constants must match the render path exactly.
+function computePageHeight(results, validation, flightInfo) {
+  const L = 4.5, BL = 2, HR = 1.5;
+  let h = 12;
+
+  h += 4 * L + BL + HR;               // header + separator
+  h += 7 * L;                          // ZFW TOF WING/CTR TOW TIF LAW UNDLD
+  h += BL + L + BL;                    // blank STAB blank
+  h += L + BL;                         // PAX blank
+  h += L + BL;                         // zone blank
+  h += 2 * L + BL + HR;               // HOLD + CARGO TTL + separator
+  h += 3 * L + BL + HR;               // CG header + ZFMAC + TOMAC + separator
+
+  const lmcItems = results.lmc?.items || [];
+  if (lmcItems.length > 0) {
+    h += L + lmcItems.length * L + L + BL + HR; // LMC block
+  }
+
+  h += L;                              // validation status line
+  if (!(validation?.allPass ?? true)) {
+    h += (validation?.errors || []).length * L;
+  }
+  h += BL + HR;
+
+  h += L;                              // PREPARED BY
+  if (flightInfo.licence)    h += L;
+  if (flightInfo.supervisor) h += L;
+  if (flightInfo.supervisor && flightInfo.staffId) h += L;
+  h += BL + L;                         // blank + AIRCRAFT TYPE
+  if (flightInfo.picName) h += L;
+  h += L + BL + HR;                   // SIGN & LIC + separator
+
+  h += 4 + 4 + 8;                     // footer 2 lines + bottom pad
+
+  return Math.ceil(h);
+}
+
 export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {}) {
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const pageW = 210;
-  const lm = 15;   // left margin
-  const W = 180;   // content width
+  const pageW = 148;               // ACARS narrow width (mm)
+  const lm    = 8;                 // left margin
+  const W     = pageW - 2 * lm;   // content width = 132 mm
+  const pageH = computePageHeight(results, validation, flightInfo);
+
+  const doc = new jsPDF('p', 'mm', [pageW, pageH]);
   let y = 8;
 
   // MAS stripe at top
@@ -34,7 +74,6 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   doc.setFillColor(204, 0, 51);
   doc.rect(pageW * 0.65, 0, pageW * 0.35, 4, 'F');
 
-  // ── Use Courier for authentic ACARS monospace look ──
   const setMono = (size = 9, style = 'normal') => {
     doc.setFont('courier', style);
     doc.setFontSize(size);
@@ -61,27 +100,36 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
 
   const blankLine = () => { y += 2; };
 
+  // Hard yellow — single row (ZFW, TOW, TOMAC)
+  const highlightYellow = () => {
+    doc.setFillColor(255, 240, 0);
+    doc.rect(lm - 2, y - 3.2, W + 4, 4.8, 'F');
+  };
+
+  // Soft green — double row band covering TOF + WING/CTR
+  const highlightGreenDouble = () => {
+    doc.setFillColor(180, 230, 180);
+    doc.rect(lm - 2, y - 3.2, W + 4, 9.6, 'F');
+  };
+
   // ────────────────────────────────────────────
   // HEADER
   // ────────────────────────────────────────────
   y = 12;
   setMono(8, 'bold');
-  const reg = flightInfo.registration || '9M-???';
-  const dep = flightInfo.departure || '???';
-  const arr = flightInfo.arrival || '???';
+  const reg       = flightInfo.registration || '9M-???';
+  const dep       = flightInfo.departure    || '???';
+  const arr       = flightInfo.arrival      || '???';
   const flightNum = flightInfo.flightNumber || '----';
-  const dateStr = flightInfo.date || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '').toUpperCase();
-  const timeStr = new Date().toISOString().slice(11, 16).replace(':', '') + 'Z';
+  const dateStr   = flightInfo.date || new Date()
+    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    .replace(/ /g, '').toUpperCase();
 
-  // Item 1 — Reference
   line(`AN ${reg}/FI ${flightNum}/MA ---`);
-  // Item 2 — Loadsheet type
   setMono(8);
   line(`- LOADSHEET FINAL ${new Date().toISOString().slice(11, 15).replace(':', '')} EDN01`);
-  // Item 3 — Flight / Date
   setMono(8, 'bold');
   line(`${flightNum}    ${dateStr}`);
-  // Item 4 — Sector / Reg / Crew / Config
   const crew = flightInfo.crew || '2/4';
   const { aircraft: ac } = results;
   const acVariant = getAircraftById(ac?.id || inputs?.aircraftId);
@@ -94,38 +142,43 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   // ────────────────────────────────────────────
   // WEIGHTS
   // ────────────────────────────────────────────
-  const { weights, cg, trim, passengers, cargo, fuel, indices } = results;
+  const { weights, cg, trim, passengers, fuel } = results;
   const allPass = validation?.allPass ?? true;
   const mzfw = acVariant?.weights?.mzfw ?? 62731;
   const mtow = acVariant?.weights?.mtow ?? 79015;
   const mlw  = acVariant?.weights?.mlw  ?? 66360;
 
   setMono(9, 'bold');
-  // ZFW / MAX ZFW
+
+  // ZFW — yellow highlight
+  highlightYellow();
   line(`ZFW ${padL(n(weights.finalZfw), 6)}  MAX ${n(mzfw)}`);
-  // TOF
+
+  // TOF + WING/CTR — single green band drawn before TOF
+  highlightGreenDouble();
   line(`TOF ${n(fuel.total)}`);
-  // Fuel split — indented sub-line
   setMono(8);
   line(`  WING ${n(fuel.wingTanks)}  CTR ${n(fuel.centerTank)}`);
+
   setMono(9, 'bold');
-  // TOW / MAX TOW
-  const limFlag = weights.limitingFactor === 'L' ? '  L' : weights.limitingFactor === 'Z' ? '  Z' : '';
+
+  // TOW — yellow highlight
+  const limFlag = weights.limitingFactor === 'L' ? '  L'
+                : weights.limitingFactor === 'Z' ? '  Z' : '';
+  highlightYellow();
   line(`TOW ${padL(n(weights.tow), 6)}  MAX ${n(mtow)}${limFlag}`);
-  // TIF
+
   line(`TIF ${n(weights.tripFuel)}${weights.tripFuelEstimated ? ' (EST)' : ''}`);
-  // LAW / MAX LAW
   line(`LAW ${padL(n(weights.landingWeight), 6)}  MAX ${n(mlw)}${weights.limitingFactor === 'L' ? '  L' : ''}`);
-  // UNDLD
   line(`UNDLD ${n(weights.undld)}`);
 
   blankLine();
 
-  // STAB — immediately after weights
+  // STAB
   let stabStr = '---';
   if (trim?.finalTrim != null) {
     const flaps = trim.flaps === 'F5' ? '1/5' : '1/15';
-    const dir = trim.finalTrim >= 0 ? 'UP' : 'DN';
+    const dir   = trim.finalTrim >= 0 ? 'UP' : 'DN';
     stabStr = `FLAPS ${flaps} ${trim.thrust}    ${Math.abs(trim.finalTrim).toFixed(1)} ${dir}`;
   } else if (trim?.message) {
     stabStr = 'FMC';
@@ -134,11 +187,11 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
 
   blankLine();
 
-  // PAX — single combined line with CHD/INF
+  // PAX
   const bcPax = passengers.zones?.OA?.count ?? inputs?.passengers?.OA ?? 0;
   const eyPax = (passengers.totalPax || 0) - bcPax;
-  const chd = inputs?.children || 0;
-  const inf = inputs?.infants || 0;
+  const chd   = inputs?.children || 0;
+  const inf   = inputs?.infants  || 0;
   line(`PAX/${bcPax}/${eyPax}  CHD ${chd}  INF ${inf}  TTL ${passengers.totalPax}`);
 
   blankLine();
@@ -150,7 +203,7 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
 
   blankLine();
 
-  // Cargo — HOLD labels + total
+  // Cargo
   const cg2 = inputs?.cargo || {};
   line(`HOLD1 ${n(cg2.HOLD1 || 0)}  HOLD2 ${n(cg2.HOLD2 || 0)}  HOLD3 ${n(cg2.HOLD3 || 0)}  HOLD4 ${n(cg2.HOLD4 || 0)}`);
   const cargoTotal = (cg2.HOLD1 || 0) + (cg2.HOLD2 || 0) + (cg2.HOLD3 || 0) + (cg2.HOLD4 || 0);
@@ -160,13 +213,33 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   hr();
 
   // ────────────────────────────────────────────
-  // CG TABLE
+  // CG TABLE — absolute x positions, right-aligned values
   // ────────────────────────────────────────────
-  setMono(8, 'bold');
-  line('        FWD-LMT  ACTL   AFT-LMT');
-  setMono(9);
-  line(`ZFMAC   ${padL(d1(cg.zfwFwdLmt), 7)}  ${padL(d1(cg.zfmac), 4)}   ${d1(cg.zfwAftLmt)}`);
-  line(`TOMAC   ${padL(d1(cg.towFwdLmt), 7)}  ${padL(d1(cg.tomac), 4)}   ${d1(cg.towAftLmt)}`);
+  const cgX = { label: lm, fwd: 58, actl: 88, aft: pageW - lm };
+
+  const cgHeaderRow = () => {
+    setMono(8, 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('FWD-LMT', cgX.fwd,  y, { align: 'right' });
+    doc.text('ACTL',    cgX.actl, y, { align: 'right' });
+    doc.text('AFT-LMT', cgX.aft,  y, { align: 'right' });
+    doc.setTextColor(20, 20, 20);
+    y += 4.5;
+  };
+
+  const cgDataRow = (label, fwd, actl, aft, doHighlight = false) => {
+    if (doHighlight) highlightYellow();
+    setMono(9, doHighlight ? 'bold' : 'normal');
+    doc.text(label, cgX.label, y);
+    doc.text(fwd,   cgX.fwd,  y, { align: 'right' });
+    doc.text(actl,  cgX.actl, y, { align: 'right' });
+    doc.text(aft,   cgX.aft,  y, { align: 'right' });
+    y += 4.5;
+  };
+
+  cgHeaderRow();
+  cgDataRow('ZFMAC', d1(cg.zfwFwdLmt), d1(cg.zfmac), d1(cg.zfwAftLmt));
+  cgDataRow('TOMAC', d1(cg.towFwdLmt), d1(cg.tomac), d1(cg.towAftLmt), true);
 
   blankLine();
   hr();
@@ -212,8 +285,8 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   // PREPARED BY / CREW DETAILS
   // ────────────────────────────────────────────
   setMono(9);
-  const preparer = flightInfo.preparer || '';
-  const licence  = flightInfo.licence  || '';
+  const preparer   = flightInfo.preparer   || '';
+  const licence    = flightInfo.licence    || '';
   const supervisor = flightInfo.supervisor || '';
   const staffId    = flightInfo.staffId    || '';
   const picName    = flightInfo.picName    || '';
@@ -235,7 +308,7 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   // Footer
   setLabel(7);
   doc.setTextColor(140, 140, 140);
-  doc.text('737 Load & Trim Calculator — Malaysia Airlines Flight Operations Training', lm, y);
+  doc.text('737 Load & Trim — MAS Flight Ops Training', lm, y);
   y += 4;
   doc.text(`Generated: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}Z`, lm, y);
 
