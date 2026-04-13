@@ -32,9 +32,9 @@ export default function MainLayout() {
 
   return (
     <HistoryContext.Provider value={{ history, addEntry, clearHistory }}>
-      <div className="min-h-screen font-sans flex flex-col">
+      <div className="font-sans flex flex-col" style={{ minHeight: '100dvh' }}>
         <div className="mas-stripe" />
-        <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 3px)' }}>
+        <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100dvh - 3px)' }}>
           <Sidebar />
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto">
