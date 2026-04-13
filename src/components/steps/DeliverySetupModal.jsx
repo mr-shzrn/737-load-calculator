@@ -1,51 +1,68 @@
 import React, { useState, useEffect } from 'react';
-import { doiFromMoment, loadDeliveryFromStorage } from '../../utils/deliveryMode.js';
+import { doiFromMac, loadDeliveryFromStorage } from '../../utils/deliveryMode.js';
 
-export default function DeliverySetupModal({ registration, onSave, onClose }) {
+export default function DeliverySetupModal({ registration, lemac, macLength, cargoTableSet, onSave, onClose }) {
   const saved = registration ? loadDeliveryFromStorage(registration) : null;
 
   const [manifest, setManifest]   = useState(saved?.manifest ?? '');
   const [zfw,      setZfw]        = useState(saved?.dow ?? '');
-  const [moment,   setMoment]     = useState('');
+  const [mac,      setMac]        = useState(saved?.mac ?? '');
   const [doi,      setDoi]        = useState(saved?.doi ?? '');
   const [crew,     setCrew]       = useState(saved?.crew ?? 3);
   const [pax,      setPax]        = useState(saved?.pax ?? 4);
   const [doiAuto,  setDoiAuto]    = useState(false);
-  const [error,    setError]      = useState('');
+  const [cargo,    setCargo]      = useState({
+    HOLD1: saved?.cargo?.HOLD1 ?? 0,
+    HOLD2: saved?.cargo?.HOLD2 ?? 0,
+    HOLD3: saved?.cargo?.HOLD3 ?? 0,
+    HOLD4: saved?.cargo?.HOLD4 ?? 0,
+  });
+  const [error, setError] = useState('');
 
-  // Auto-compute DOI when ZFW + moment are both entered
+  // Auto-compute DOI when ZFW + MACZFW are both entered
   useEffect(() => {
     const z = Number(zfw);
-    const m = Number(moment);
-    if (z > 0 && m > 0) {
-      const computed = doiFromMoment(z, m);
-      setDoi(computed);
+    const m = Number(mac);
+    const l = lemac || 628.0;
+    const ml = macLength || 149.5;
+    if (z > 0 && m > 0 && m < 50) {
+      setDoi(doiFromMac(z, m, l, ml));
       setDoiAuto(true);
     } else {
       setDoiAuto(false);
     }
-  }, [zfw, moment]);
+  }, [zfw, mac, lemac, macLength]);
 
   function handleSave() {
-    const zfwN   = Number(zfw);
-    const doiN   = Number(doi);
-    const crewN  = Number(crew);
-    const paxN   = Number(pax);
+    const zfwN  = Number(zfw);
+    const doiN  = Number(doi);
+    const macN  = Number(mac);
+    const crewN = Number(crew);
+    const paxN  = Number(pax);
 
-    if (!manifest.trim())         { setError('Manifest reference is required.'); return; }
-    if (!zfwN || zfwN < 30000)   { setError('ZFW must be a valid weight (kg).'); return; }
-    if (isNaN(doiN))              { setError('DOI / Index is required.'); return; }
-    if (crewN < 1)                { setError('Baseline crew must be at least 1.'); return; }
-    if (paxN < 0)                 { setError('Baseline pax cannot be negative.'); return; }
+    if (!manifest.trim())        { setError('Manifest reference is required.'); return; }
+    if (!zfwN || zfwN < 30000)  { setError('ZFW must be a valid weight (kg).'); return; }
+    if (!macN || macN <= 0)     { setError('MACZFW % is required.'); return; }
+    if (isNaN(doiN))            { setError('DOI / Index is required.'); return; }
+    if (crewN < 1)              { setError('Baseline crew must be at least 1.'); return; }
+    if (paxN < 0)               { setError('Baseline pax cannot be negative.'); return; }
 
     onSave({
-      v: 1,
+      v: 2,
       reg: registration,
       manifest: manifest.trim(),
       dow: zfwN,
       doi: doiN,
+      mac: macN,
       crew: crewN,
       pax: paxN,
+      cargo: {
+        HOLD1: Number(cargo.HOLD1) || 0,
+        HOLD2: Number(cargo.HOLD2) || 0,
+        HOLD3: Number(cargo.HOLD3) || 0,
+        HOLD4: Number(cargo.HOLD4) || 0,
+      },
+      cargoTableSet: cargoTableSet || '737-max-8',
     });
   }
 
@@ -56,7 +73,7 @@ export default function DeliverySetupModal({ registration, onSave, onClose }) {
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div className="rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ background: 'var(--svg-label-bg, #fff)' }}>
+        <div className="rounded-2xl shadow-2xl w-full max-w-sm p-6 my-4" style={{ background: 'var(--svg-label-bg, #fff)' }}>
 
           {/* Header */}
           <div className="flex items-center justify-between mb-1">
@@ -68,7 +85,7 @@ export default function DeliverySetupModal({ registration, onSave, onClose }) {
             </button>
           </div>
           <p className="text-[11px] muted mb-1">{registration}</p>
-          <p className="text-[11px] muted mb-5">Enter figures from the Boeing Flight Loading Manifest. ZFW and moment lock the baseline — only crew count, pax count and fuel change per flight.</p>
+          <p className="text-[11px] muted mb-5">Enter figures from the Boeing Flight Loading Manifest. ZFW and MACZFW lock the baseline — only crew count, pax count, cargo and fuel change per flight.</p>
 
           {/* Restore notice */}
           {saved && (
@@ -104,17 +121,18 @@ export default function DeliverySetupModal({ registration, onSave, onClose }) {
               <p className="text-[10px] muted mt-1">Bottom of the manifest: "ZERO FUEL WT." figure.</p>
             </div>
 
-            {/* ZFW Moment → auto DOI */}
+            {/* MACZFW → auto DOI */}
             <div>
-              <label className={labelCls}>ZFW Moment (kg·in) <span className="normal-case font-normal">— auto-computes DOI</span></label>
+              <label className={labelCls}>MACZFW (%) <span className="normal-case font-normal">— auto-computes DOI</span></label>
               <input
                 type="number"
-                value={moment}
-                onChange={e => setMoment(e.target.value)}
+                value={mac}
+                step="0.01"
+                onChange={e => setMac(e.target.value)}
                 className={fieldCls}
-                placeholder="29601222"
+                placeholder="14.97"
               />
-              <p className="text-[10px] muted mt-1">Moment column next to ZFW on the manifest.</p>
+              <p className="text-[10px] muted mt-1">CG % MAC printed on the manifest next to ZERO FUEL WT.</p>
             </div>
 
             {/* DOI */}
@@ -155,6 +173,28 @@ export default function DeliverySetupModal({ registration, onSave, onClose }) {
                   className={fieldCls + ' text-center'}
                 />
                 <p className="text-[10px] muted mt-1">Passengers QTY.</p>
+              </div>
+            </div>
+
+            {/* Manifest cargo */}
+            <div>
+              <label className={labelCls}>Manifest Cargo — baked into ZFW</label>
+              <p className="text-[10px] muted mb-2">Enter exactly as shown on the manifest. Leave at 0 if no cargo in that hold.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {['HOLD1', 'HOLD2', 'HOLD3', 'HOLD4'].map((hold, i) => (
+                  <div key={hold} className="flex items-center gap-1.5">
+                    <span className="text-[11px] muted font-semibold w-10">H{i + 1}</span>
+                    <input
+                      type="number"
+                      value={cargo[hold]}
+                      min={0}
+                      onChange={e => setCargo(prev => ({ ...prev, [hold]: e.target.value }))}
+                      className="field-input flex-1 px-2 py-2 text-center font-mono text-[13px]"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] muted">kg</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

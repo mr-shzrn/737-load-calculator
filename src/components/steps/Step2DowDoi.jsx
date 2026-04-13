@@ -76,7 +76,7 @@ function StepperInput({ value, onChange, min = -99, label, unit = '' }) {
 // ── MAX 8 path ────────────────────────────────────────────────────────────────
 function Max8DowDoi() {
   const {
-    inputs, setRegistration, setCrewConfig, setPantryType,
+    inputs, aircraft, setRegistration, setCrewConfig, setPantryType,
     setDow, setDoi, setDeliveryLoad, setDeliveryAdjustment, exitDeliveryMode,
   } = useCalculation();
   const registrations = useAircraftRegistry();
@@ -116,7 +116,13 @@ function Max8DowDoi() {
 
   function handleSetupSave(data) {
     setShowSetup(false);
-    setDeliveryLoad(data);
+    // Preserve per-flight adjustments when re-editing an existing delivery load
+    setDeliveryLoad(
+      data,
+      inputs.deliveryExtraCrew ?? 0,
+      inputs.deliveryExtraPax  ?? 0,
+      inputs.deliveryBagKg     ?? 15,
+    );
   }
 
   // ── Delivery mode: locked panel ──────────────────────────────────────────
@@ -125,12 +131,24 @@ function Max8DowDoi() {
     const extraCrew  = inputs.deliveryExtraCrew ?? 0;
     const extraPax   = inputs.deliveryExtraPax  ?? 0;
     const bagKg      = inputs.deliveryBagKg     ?? 15;
-    const crewWtDelta = extraCrew * (85 + bagKg);
-    const paxWtDelta  = extraPax  * (77 + bagKg);
-    const totalWtDelta = crewWtDelta + paxWtDelta;
-    const iuDelta = (crewWtDelta * (44.0 - 658.3) / 40000)
-                  + (paxWtDelta  * (550.0 - 658.3) / 40000);
-    const update = (ec, ep, bk) => setDeliveryAdjustment(ec, ep, bk);
+    const actualCargo = inputs.deliveryActualCargo
+      || dd.cargo
+      || { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 };
+    const baseCargo  = dd.cargo || { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 };
+
+    // Delta derived from context-computed values (includes crew + pax + cargo)
+    const totalWtDelta = (Number(inputs.dow) || dd.dow) - dd.dow;
+    const totalIuDelta = (Number(inputs.doi) || dd.doi) - dd.doi;
+    const cargoWtDelta = ['HOLD1', 'HOLD2', 'HOLD3', 'HOLD4'].reduce(
+      (s, h) => s + ((Number(actualCargo[h]) || 0) - (Number(baseCargo[h]) || 0)), 0
+    );
+
+    const updateCrewPax = (ec, ep, bk) =>
+      setDeliveryAdjustment(ec, ep, bk, actualCargo);
+    const updateCargo = (hold, val) => {
+      const next = { ...actualCargo, [hold]: Number(val) || 0 };
+      setDeliveryAdjustment(extraCrew, extraPax, bagKg, next);
+    };
 
     return (
       <div className="space-y-5">
@@ -149,28 +167,43 @@ function Max8DowDoi() {
               </div>
               <div className="text-[10px] muted mt-0.5">{dd.manifest}</div>
             </div>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,51,102,0.12)' }}>
-              <svg className="w-4 h-4" style={{ color: 'rgba(0,51,102,0.7)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+            <div className="flex items-center gap-2">
+              {/* Edit button */}
+              <button
+                type="button"
+                onClick={() => setShowSetup(true)}
+                title="Edit delivery figures"
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(0,51,102,0.12)', color: 'rgba(0,51,102,0.7)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+              {/* Lock icon */}
+              <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,51,102,0.12)' }}>
+                <svg className="w-4 h-4" style={{ color: 'rgba(0,51,102,0.7)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
             </div>
           </div>
 
           {/* Baseline summary */}
           <div className="text-[11px] muted">
-            Manifest baseline: <span className="font-semibold heading">{dd.crew} flight crew · {dd.pax} pax · ZFW {dd.dow?.toLocaleString()} kg</span>
+            Manifest baseline: <span className="font-semibold heading">{dd.crew} flight crew · {dd.pax} pax · ZFW {dd.dow?.toLocaleString()} kg{dd.mac ? ` · ${dd.mac}% MAC` : ''}</span>
           </div>
 
-          {/* Per-flight adjustments */}
+          {/* Per-flight adjustments — crew / pax / bag */}
           <div className="space-y-3 pt-1">
-            <StepperInput label="Extra flight crew" value={extraCrew} min={-dd.crew} onChange={v => update(v, extraPax, bagKg)} />
-            <StepperInput label="Extra pax / observers" value={extraPax} min={-dd.pax} onChange={v => update(extraCrew, v, bagKg)} />
+            <StepperInput label="Extra flight crew" value={extraCrew} min={-dd.crew} onChange={v => updateCrewPax(v, extraPax, bagKg)} />
+            <StepperInput label="Extra pax / observers" value={extraPax} min={-dd.pax} onChange={v => updateCrewPax(extraCrew, v, bagKg)} />
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] heading font-medium">Bag weight / person</span>
               <div className="flex items-center gap-1">
                 <input
                   type="number" value={bagKg} min={0} max={50}
-                  onChange={e => update(extraCrew, extraPax, Math.max(0, Number(e.target.value) || 0))}
+                  onChange={e => updateCrewPax(extraCrew, extraPax, Math.max(0, Number(e.target.value) || 0))}
                   className="field-input w-16 px-2 py-1.5 text-center font-mono text-[13px]"
                 />
                 <span className="text-[11px] muted">kg</span>
@@ -178,18 +211,46 @@ function Max8DowDoi() {
             </div>
           </div>
 
-          {/* Delta summary */}
+          {/* Per-flight cargo — only shown when manifest cargo is defined (v:2) */}
+          {dd.cargo !== undefined && (
+            <div className="pt-3 border-t" style={{ borderColor: 'rgba(0,51,102,0.15)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(0,51,102,0.6)' }}>
+                Actual Cargo (this flight)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {['HOLD1', 'HOLD2', 'HOLD3', 'HOLD4'].map((hold, i) => (
+                  <div key={hold} className="flex items-center gap-1.5">
+                    <span className="text-[11px] muted font-semibold w-10">H{i + 1}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={Number(actualCargo[hold]) || 0}
+                      onChange={e => updateCargo(hold, e.target.value)}
+                      className="field-input flex-1 px-2 py-1.5 text-center font-mono text-[13px]"
+                    />
+                    <span className="text-[10px] muted">kg</span>
+                  </div>
+                ))}
+              </div>
+              {cargoWtDelta !== 0 && (
+                <p className="text-[10px] muted mt-1.5 font-mono text-center">
+                  Δ cargo: {cargoWtDelta >= 0 ? '+' : ''}{cargoWtDelta} kg vs manifest
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Combined delta summary */}
           {totalWtDelta !== 0 && (
             <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(0,51,102,0.06)', border: '1px solid rgba(0,51,102,0.15)' }}>
               <div className="flex justify-between">
-                <span className="muted">Weight delta</span>
+                <span className="muted">Total weight delta</span>
                 <span className="font-mono font-bold heading">{totalWtDelta >= 0 ? '+' : ''}{totalWtDelta} kg</span>
               </div>
               <div className="flex justify-between mt-0.5">
-                <span className="muted">Index delta</span>
-                <span className="font-mono font-bold heading">{iuDelta >= 0 ? '+' : ''}{iuDelta.toFixed(2)} IU</span>
+                <span className="muted">Total index delta</span>
+                <span className="font-mono font-bold heading">{totalIuDelta >= 0 ? '+' : ''}{totalIuDelta.toFixed(2)} IU</span>
               </div>
-              <div className="text-[10px] muted mt-1">Crew at cockpit arm (44 in) · Pax at cabin arm (550 in)</div>
             </div>
           )}
 
@@ -215,7 +276,17 @@ function Max8DowDoi() {
           </div>
         </div>
 
-        {/* Scanner modal */}
+        {/* Modals */}
+        {showSetup && (
+          <DeliverySetupModal
+            registration={inputs.registration}
+            lemac={aircraft?.lemac}
+            macLength={aircraft?.macLength || 149.5}
+            cargoTableSet={aircraft?.cargoTableSet}
+            onSave={handleSetupSave}
+            onClose={() => setShowSetup(false)}
+          />
+        )}
         {showScanner && (
           <DeliveryScanner
             expectedReg={inputs.registration}
@@ -367,6 +438,9 @@ function Max8DowDoi() {
       {showSetup && (
         <DeliverySetupModal
           registration={inputs.registration}
+          lemac={aircraft?.lemac}
+          macLength={aircraft?.macLength || 149.5}
+          cargoTableSet={aircraft?.cargoTableSet}
           onSave={handleSetupSave}
           onClose={() => setShowSetup(false)}
         />

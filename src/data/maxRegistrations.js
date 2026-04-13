@@ -15,7 +15,7 @@ export const MAX_8_REGISTRATIONS = [
   { reg: '9M-MVK', bew: 44369, bew_iu: 41.89 },
   { reg: '9M-MVL', bew: 44296, bew_iu: 42.01 },
   { reg: '9M-MVM', bew: 44326, bew_iu: 41.79 },
-  { reg: '9M-MVO', bew: 44375, bew_iu: 41.67, deliveryPreset: { manifest: '1N715 / 06-APR-2026', dow: 45501, doi: 36, crew: 3, pax: 4, note: 'ZFW locked from signed delivery manifest.' } },
+  { reg: '9M-MVO', bew: 44375, bew_iu: 41.67, deliveryPreset: { v: 2, manifest: '1N715 / 06-APR-2026', dow: 45501, doi: 36, mac: 14.97, crew: 3, pax: 4, cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 }, cargoTableSet: '737-max-8', note: 'ZFW locked from signed delivery manifest.' } },
 ];
 
 // Pantry options — sourced from B737MAX LTS Tool V1.xlsm (DOWDOI sheet, rows 12–20)

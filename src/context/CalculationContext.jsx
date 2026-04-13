@@ -7,6 +7,20 @@ import {
   saveDeliveryToStorage,
   clearDeliveryFromStorage,
 } from '../utils/deliveryMode.js';
+import { getAllCargoIndices } from '../utils/indexLookup.js';
+
+function sumCargo(cargo) {
+  return Object.values(cargo || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+}
+
+function cargoIndexTotal(cargo, cargoTableSet) {
+  try {
+    const indices = getAllCargoIndices(cargo || {}, cargoTableSet || '737-max-8');
+    return Object.values(indices).reduce((s, h) => s + h.index, 0);
+  } catch (_) {
+    return 0;
+  }
+}
 
 const CalculationContext = createContext(null);
 
@@ -20,10 +34,11 @@ const DEFAULT_INPUTS = {
   dow: '',
   doi: '',
   deliveryMode: false,
-  deliveryData: null,      // { v, reg, manifest, dow, doi, crew, pax }
+  deliveryData: null,      // { v, reg, manifest, dow, doi, mac, crew, pax, cargo, cargoTableSet }
   deliveryExtraCrew: 0,
   deliveryExtraPax: 0,
   deliveryBagKg: 15,
+  deliveryActualCargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
   passengers: { OA: 0, OB: 0, OC: 0, OD: 0 },
   children: 0,
   infants: 0,
@@ -97,7 +112,11 @@ function reducer(state, action) {
     //          restored from localStorage, and legacy registry presets.
     case 'SET_DELIVERY_LOAD': {
       const { data, extraCrew = 0, extraPax = 0, bagKg = 15 } = action.payload;
-      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg);
+      // Initialise actual cargo to manifest baseline (zero delta)
+      const deliveryActualCargo = data.cargo
+        ? { ...data.cargo }
+        : { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 };
+      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg, 0, 0);
       saveDeliveryToStorage(data);
       return {
         ...state,
@@ -108,6 +127,7 @@ function reducer(state, action) {
           deliveryExtraCrew: extraCrew,
           deliveryExtraPax: extraPax,
           deliveryBagKg: bagKg,
+          deliveryActualCargo,
           dow,
           doi,
           ...DELIVERY_LOCKED,
@@ -118,13 +138,26 @@ function reducer(state, action) {
     // ── SET_DELIVERY_ADJUSTMENT ──────────────────────────────────────────────
     // Per-flight delta: extra crew / pax / bag weight on top of manifest baseline.
     case 'SET_DELIVERY_ADJUSTMENT': {
-      const { extraCrew, extraPax, bagKg } = action.payload;
+      const { extraCrew, extraPax, bagKg, actualCargo } = action.payload;
       const data = state.inputs.deliveryData;
       if (!data) return state;
-      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg);
+      const resolved = actualCargo || state.inputs.deliveryActualCargo;
+      const baseCargo = data.cargo || { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 };
+      const cargoWtDelta = sumCargo(resolved) - sumCargo(baseCargo);
+      const cargoIuDelta = cargoIndexTotal(resolved, data.cargoTableSet)
+                         - cargoIndexTotal(baseCargo, data.cargoTableSet);
+      const { dow, doi } = computeFlightDowDoi(data, extraCrew, extraPax, bagKg, cargoWtDelta, cargoIuDelta);
       return {
         ...state,
-        inputs: { ...state.inputs, deliveryExtraCrew: extraCrew, deliveryExtraPax: extraPax, deliveryBagKg: bagKg, dow, doi },
+        inputs: {
+          ...state.inputs,
+          deliveryExtraCrew: extraCrew,
+          deliveryExtraPax: extraPax,
+          deliveryBagKg: bagKg,
+          deliveryActualCargo: resolved,
+          dow,
+          doi,
+        },
       };
     }
 
@@ -141,6 +174,7 @@ function reducer(state, action) {
           deliveryExtraCrew: 0,
           deliveryExtraPax: 0,
           deliveryBagKg: 15,
+          deliveryActualCargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
           dow: '',
           doi: '',
           crewConfig: '',
@@ -215,8 +249,8 @@ export function CalculationProvider({ children }) {
   // ── Action creators ────────────────────────────────────────────────────────
   const setDeliveryLoad        = useCallback((data, extraCrew, extraPax, bagKg) =>
     dispatch({ type: 'SET_DELIVERY_LOAD', payload: { data, extraCrew, extraPax, bagKg } }), []);
-  const setDeliveryAdjustment  = useCallback((extraCrew, extraPax, bagKg) =>
-    dispatch({ type: 'SET_DELIVERY_ADJUSTMENT', payload: { extraCrew, extraPax, bagKg } }), []);
+  const setDeliveryAdjustment  = useCallback((extraCrew, extraPax, bagKg, actualCargo) =>
+    dispatch({ type: 'SET_DELIVERY_ADJUSTMENT', payload: { extraCrew, extraPax, bagKg, actualCargo } }), []);
   const exitDeliveryMode       = useCallback(() => dispatch({ type: 'EXIT_DELIVERY_MODE' }), []);
 
   // Legacy alias used by the registry-preset path (kept for compat)

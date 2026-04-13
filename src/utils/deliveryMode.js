@@ -7,23 +7,35 @@ export const IU_REF_ARM = 658.3;
 export const IU_SCALE   = 40000;
 export const IU_OFFSET  = 45;
 
-// ── DOI from manifest ZFW + ZFW Moment ──────────────────────────────────────
-// Formula: IU = (moment − ZFW × IU_REF_ARM) / IU_SCALE + IU_OFFSET
-// Verified: ZFW=45501, moment=29601222 → doi=36 ✓
+// ── DOI from manifest MACZFW % ──────────────────────────────────────────────
+// Formula: moment = ZFW × ((mac% / 100 × macLength) + lemac)
+//          DOI = round((moment − ZFW × IU_REF_ARM) / IU_SCALE + IU_OFFSET)
+// Simplified: DOI = round(ZFW × ((mac%/100 × macLength) + lemac − IU_REF_ARM) / IU_SCALE + IU_OFFSET)
+// Verified: ZFW=45501, mac=14.97, lemac=628.0, macLength=149.5 → doi=36 ✓
+export function doiFromMac(zfw, macPercent, lemac, macLength) {
+  return Math.round(
+    zfw * ((macPercent / 100 * macLength) + lemac - IU_REF_ARM) / IU_SCALE + IU_OFFSET
+  );
+}
+
+// ── DOI from manifest ZFW moment (kept for backward compat) ─────────────────
 export function doiFromMoment(zfw, moment) {
   return Math.round((moment - zfw * IU_REF_ARM) / IU_SCALE + IU_OFFSET);
 }
 
 // ── QR payload encode / decode ───────────────────────────────────────────────
+// v:2 adds mac, cargo, cargoTableSet fields.
+// encodeDelivery spreads data — if data.v = 2 it overrides the prefix.
 export function encodeDelivery(data) {
-  return JSON.stringify({ v: 1, ...data });
+  return JSON.stringify({ v: 2, ...data });
 }
 
 export function decodeDelivery(raw) {
   try {
     const data = JSON.parse(raw);
+    // Accept v:1 (legacy) or v:2
     if (
-      data.v !== 1 ||
+      (data.v !== 1 && data.v !== 2) ||
       typeof data.reg !== 'string' ||
       typeof data.manifest !== 'string' ||
       typeof data.dow !== 'number' ||
@@ -31,6 +43,11 @@ export function decodeDelivery(raw) {
       typeof data.crew !== 'number' ||
       typeof data.pax !== 'number'
     ) return null;
+
+    // Normalise: ensure cargo field exists (v:1 back-compat)
+    if (!data.cargo) {
+      data.cargo = { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 };
+    }
     return data;
   } catch (_) {
     return null;
@@ -55,15 +72,25 @@ export function clearDeliveryFromStorage(reg) {
   try { localStorage.removeItem(storageKey(reg)); } catch (_) {}
 }
 
-// ── Per-flight DOW/DOI with crew/pax delta ──────────────────────────────────
-// deliveryData.dow = manifest ZFW (all cargo + baseline crew/pax already inside)
+// ── Per-flight DOW/DOI with crew/pax/cargo delta ─────────────────────────────
+// deliveryData.dow = manifest ZFW (all cargo + baseline crew/pax already inside).
 // Extra crew/pax are deltas from the manifest baseline.
-export function computeFlightDowDoi(deliveryData, extraCrew, extraPax, bagKg) {
+// cargoWtDelta / cargoIuDelta are pre-computed by the caller (CalculationContext)
+// using the aircraft's cargo index table so this function stays sync & pure.
+export function computeFlightDowDoi(
+  deliveryData,
+  extraCrew,
+  extraPax,
+  bagKg,
+  cargoWtDelta = 0,
+  cargoIuDelta = 0,
+) {
   const crewWt  = extraCrew * (85 + bagKg);
   const paxWt   = extraPax  * (77 + bagKg);
-  const wtDelta = crewWt + paxWt;
+  const wtDelta = crewWt + paxWt + cargoWtDelta;
   const iuDelta = crewWt * (DELIVERY_CREW_ARM - IU_REF_ARM) / IU_SCALE
-                + paxWt  * (DELIVERY_PAX_ARM  - IU_REF_ARM) / IU_SCALE;
+                + paxWt  * (DELIVERY_PAX_ARM  - IU_REF_ARM) / IU_SCALE
+                + cargoIuDelta;
   return {
     dow: Math.round(deliveryData.dow + wtDelta),
     doi: Math.round(deliveryData.doi + iuDelta),
