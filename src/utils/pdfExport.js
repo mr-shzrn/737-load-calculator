@@ -112,6 +112,12 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
     doc.rect(lm - 2, y - 3.2, W + 4, 9.6, 'F');
   };
 
+  // Soft green — single row (STAB)
+  const highlightGreenSingle = () => {
+    doc.setFillColor(180, 230, 180);
+    doc.rect(lm - 2, y - 3.2, W + 4, 4.8, 'F');
+  };
+
   // ────────────────────────────────────────────
   // HEADER
   // ────────────────────────────────────────────
@@ -183,6 +189,7 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   } else if (trim?.message) {
     stabStr = 'FMC';
   }
+  highlightGreenSingle();
   line(`STAB:${stabStr}`);
 
   blankLine();
@@ -217,6 +224,13 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
   // ────────────────────────────────────────────
   const cgX = { label: lm, fwd: 58, actl: 88, aft: pageW - lm };
 
+  // Yellow highlight on label + ACTL column only (not FWD or AFT)
+  const highlightTomac = () => {
+    doc.setFillColor(255, 240, 0);
+    doc.rect(lm - 2,          y - 3.2, 16, 4.8, 'F');  // TOMAC label
+    doc.rect(cgX.actl - 13,  y - 3.2, 15, 4.8, 'F');  // ACTL value
+  };
+
   const cgHeaderRow = () => {
     setMono(8, 'bold');
     doc.setTextColor(100, 100, 100);
@@ -227,9 +241,9 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
     y += 4.5;
   };
 
-  const cgDataRow = (label, fwd, actl, aft, doHighlight = false) => {
-    if (doHighlight) highlightYellow();
-    setMono(9, doHighlight ? 'bold' : 'normal');
+  const cgDataRow = (label, fwd, actl, aft, highlightFn = null) => {
+    if (highlightFn) highlightFn();
+    setMono(9, highlightFn ? 'bold' : 'normal');
     doc.text(label, cgX.label, y);
     doc.text(fwd,   cgX.fwd,  y, { align: 'right' });
     doc.text(actl,  cgX.actl, y, { align: 'right' });
@@ -239,7 +253,7 @@ export function generateLoadsheetPDF(results, validation, inputs, flightInfo = {
 
   cgHeaderRow();
   cgDataRow('ZFMAC', d1(cg.zfwFwdLmt), d1(cg.zfmac), d1(cg.zfwAftLmt));
-  cgDataRow('TOMAC', d1(cg.towFwdLmt), d1(cg.tomac), d1(cg.towAftLmt), true);
+  cgDataRow('TOMAC', d1(cg.towFwdLmt), d1(cg.tomac), d1(cg.towAftLmt), highlightTomac);
 
   blankLine();
   hr();
