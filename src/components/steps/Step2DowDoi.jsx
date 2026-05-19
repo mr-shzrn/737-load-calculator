@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useCalculation } from '../../context/CalculationContext.jsx';
 import { useAircraftRegistry } from '../../hooks/useAircraftRegistry.js';
 import { MAX_8_PANTRY_OPTIONS, MAX_8_CREW_CONFIGS } from '../../data/maxRegistrations.js';
-import { loadDeliveryFromStorage } from '../../utils/deliveryMode.js';
+import { loadDeliveryFromStorage, buildManifestLookup } from '../../utils/deliveryMode.js';
 import Pill from '../shared/Pill.jsx';
 import DeliverySetupModal from './DeliverySetupModal.jsx';
 import DeliveryScanner from './DeliveryScanner.jsx';
@@ -84,12 +84,17 @@ function Max8DowDoi() {
   const [manualOverride, setManualOverride] = useState(false);
   const [showSetup,      setShowSetup]      = useState(false);
   const [showScanner,    setShowScanner]    = useState(false);
+  const [manifestInput,  setManifestInput]  = useState('');
 
   const selectedReg    = registrations.find(r => r.reg === inputs.registration) || null;
   const selectedCrew   = MAX_8_CREW_CONFIGS.find(c => c.id === inputs.crewConfig) || null;
   const selectedPantry = MAX_8_PANTRY_OPTIONS.find(p => p.id === inputs.pantryType) || null;
   const allSelected    = selectedReg && selectedCrew && selectedPantry;
   const savedDelivery  = inputs.registration ? loadDeliveryFromStorage(inputs.registration) : null;
+  const manifestLookup = useMemo(() => buildManifestLookup(registrations), [registrations]);
+  const manifestMatch = manifestInput.length >= 4
+    ? (manifestLookup[manifestInput.trim().toUpperCase()] ?? null)
+    : null;
 
   const computedDow    = allSelected ? selectedReg.bew + selectedCrew.weight + selectedPantry.weight : null;
   const computedDoiRaw = allSelected ? selectedReg.bew_iu + selectedCrew.index + selectedPantry.index : null;
@@ -123,6 +128,11 @@ function Max8DowDoi() {
       inputs.deliveryExtraPax  ?? 0,
       inputs.deliveryBagKg     ?? 15,
     );
+  }
+
+  function handleManifestConfirm() {
+    setRegistration(manifestMatch.reg);
+    setDeliveryLoad(manifestMatch, 0, 0, 15);
   }
 
   // ── Delivery mode: locked panel ──────────────────────────────────────────
@@ -301,6 +311,57 @@ function Max8DowDoi() {
   // ── Normal (non-delivery) flow ───────────────────────────────────────────
   return (
     <div className="space-y-5">
+
+      {/* ── Manifest lookup — primary delivery path ── */}
+      <div>
+        <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
+          Delivery Manifest Number
+        </label>
+        <input
+          type="text"
+          value={manifestInput}
+          onChange={e => setManifestInput(e.target.value.toUpperCase())}
+          className="field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch uppercase"
+          placeholder="e.g. 1N716"
+          maxLength={10}
+        />
+      </div>
+
+      {manifestMatch && (
+        <div className="rounded-xl px-5 py-4 space-y-3" style={{ background: 'rgba(5,150,105,0.07)', border: '1.5px solid rgba(5,150,105,0.35)' }}>
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(4,120,87,0.8)' }}>MANIFEST FOUND</div>
+            <div className="text-2xl font-mono font-bold heading mt-1">{manifestMatch.reg}</div>
+            <div className="text-[12px] muted mt-0.5">{manifestMatch.manifest}</div>
+          </div>
+          <div className="text-[12px] heading space-y-1">
+            <div>
+              ZFW <span className="font-mono font-bold">{manifestMatch.dow?.toLocaleString()} kg</span>
+              {' · '}
+              <span className="font-mono font-bold">{manifestMatch.mac}% MAC</span>
+            </div>
+            <div>
+              <span className="font-mono font-bold">{manifestMatch.crew}</span> crew
+              {' · '}
+              <span className="font-mono font-bold">{manifestMatch.pax}</span> pax
+              {' · '}
+              cargo {Object.values(manifestMatch.cargo || {}).every(v => !v) ? 'nil' : 'per manifest'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleManifestConfirm}
+            className="w-full py-3 rounded-xl font-bold text-[14px] text-white"
+            style={{ background: '#059669' }}
+          >
+            CONFIRM & LOCK LOAD
+          </button>
+        </div>
+      )}
+
+      {manifestInput.length >= 4 && !manifestMatch && (
+        <p className="text-[12px] muted text-center">Manifest not found — enter manually below.</p>
+      )}
 
       {/* Registration */}
       <div>
