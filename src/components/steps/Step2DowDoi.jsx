@@ -131,6 +131,7 @@ function Max8DowDoi() {
   }
 
   function handleManifestConfirm() {
+    if (!manifestMatch) return;
     setRegistration(manifestMatch.reg);
     setDeliveryLoad(manifestMatch, 0, 0, 15);
   }
