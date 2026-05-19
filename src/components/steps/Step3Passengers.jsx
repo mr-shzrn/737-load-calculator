@@ -19,13 +19,14 @@ export default function Step3Passengers() {
   const { inputs, aircraft, setPassengers, setChildren, setInfants } = useCalculation();
 
   if (inputs.deliveryMode) {
+    const dd = inputs.deliveryData;
     return (
       <div className="fade-in max-w-xl">
         <h2 className="text-xl font-bold heading mb-1">Passengers</h2>
         <div className="mt-4 rounded-xl px-5 py-6 text-center" style={{ background: 'rgba(0,51,102,0.07)', border: '1.5px solid rgba(0,51,102,0.25)' }}>
           <div className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(0,51,102,0.7)' }}>DELIVERY MODE — LOAD LOCKED</div>
-          <div className="text-[13px] muted">Passenger load fixed per signed manifest 1N715 / 06-APR-2026.</div>
-          <div className="mt-3 font-mono text-[13px] heading">4 pax · 356 kg · Main Deck</div>
+          <div className="text-[13px] muted">Passenger load fixed per signed manifest {dd?.manifest}.</div>
+          <div className="mt-3 font-mono text-[13px] heading">{dd?.pax ?? 0} pax · Main Deck</div>
           <div className="mt-1 text-[11px] muted">Modelled as ZFW in Step 2. No zone entry required.</div>
         </div>
       </div>
