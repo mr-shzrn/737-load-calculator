@@ -25,8 +25,9 @@ export function performCalculation(input) {
   // 1. Calculate all indices
   const passengerIndices = getAllPassengerIndices(passengers, aircraft.indexTableSet);
   const cargoIndices = getAllCargoIndices(cargo, aircraft.cargoTableSet || '738');
-  const totalFuel = (fuel.wingTanks || 0) + (fuel.centerTank || 0);
-  const fuelIndexResult = calculateFuelIndex(totalFuel, fuel.wingTanks, fuel.centerTank, aircraft.fuelTableSet || '738');
+  const wingTanks = (fuel.wingTank1 || 0) + (fuel.wingTank2 || 0);
+  const totalFuel = wingTanks + (fuel.centerTank || 0);
+  const fuelIndexResult = calculateFuelIndex(totalFuel, wingTanks, fuel.centerTank, aircraft.fuelTableSet || '738');
 
   // 2. Calculate passenger totals
   const totalAdultPax = Object.values(passengers).reduce((sum, p) => sum + (p || 0), 0);
@@ -142,7 +143,9 @@ export function performCalculation(input) {
 
     // Fuel details
     fuel: {
-      wingTanks: fuel.wingTanks || 0,
+      wingTank1: fuel.wingTank1 || 0,
+      wingTank2: fuel.wingTank2 || 0,
+      wingTanks,
       centerTank: fuel.centerTank || 0,
       total: totalFuel,
       index: fuelIndexResult.index,

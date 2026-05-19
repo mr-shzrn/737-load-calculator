@@ -22,27 +22,31 @@ export default function Step5Fuel() {
   const { inputs, aircraft, results, validation, setFuel, setTakeoffConfig } = useCalculation();
   const fuel = inputs.fuel;
   const [fuelMode, setFuelMode] = useState('total');
-  const totalFuel = (fuel.wingTanks || 0) + (fuel.centerTank || 0);
+  const totalFuel = (fuel.wingTank1 || 0) + (fuel.wingTank2 || 0) + (fuel.centerTank || 0);
   const fuelIndex = results?.fuel?.index ?? '---';
   const config = inputs.takeoffConfig;
   const availableThrust = aircraft?.availableThrust || ['26K', '24K', '22K'];
 
-  const wingMax = aircraft?.wingTankMax || 7830;
-  const centerMax = aircraft?.type === '737-MAX-8' ? 12850 : 13066;
-  const totalMax = aircraft?.type === '737-MAX-8' ? 20570 : 20896;
+  const wingMaxEach = Math.floor((aircraft?.wingTankMax || 7830) / 2);
+  const centerMax   = aircraft?.centerTankMax || (aircraft?.type === '737-MAX-8' ? 13763 : 13066);
+  const totalMax    = aircraft?.totalFuelMax  || (aircraft?.type === '737-MAX-8' ? 21961 : 20896);
 
   const fuelErrors = validation?.fuel?.errors || [];
 
   function distribute(total) {
-    const wing = Math.min(total, wingMax);
-    const centre = Math.max(0, total - wingMax);
-    setFuel('wingTanks', wing);
+    const wingMax = wingMaxEach * 2;
+    const wingsTotal = Math.min(total, wingMax);
+    const wt1 = Math.min(Math.ceil(wingsTotal / 2), wingMaxEach);
+    const wt2 = Math.min(wingsTotal - wt1, wingMaxEach);
+    const centre = Math.max(0, total - wingsTotal);
+    setFuel('wingTank1', wt1);
+    setFuel('wingTank2', wt2);
     setFuel('centerTank', centre);
   }
 
   function handleModeSwitch(mode) {
     if (mode === 'total') {
-      distribute((fuel.wingTanks || 0) + (fuel.centerTank || 0));
+      distribute((fuel.wingTank1 || 0) + (fuel.wingTank2 || 0) + (fuel.centerTank || 0));
     }
     setFuelMode(mode);
   }
@@ -92,11 +96,16 @@ export default function Step5Fuel() {
               placeholder="0"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="live-panel p-4 text-center">
-              <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Wing 1+2</span>
-              <span className="text-xl font-mono font-bold heading">{fmt(fuel.wingTanks || 0)} kg</span>
-              <span className="text-[10px] muted block mt-1">max {fmt(wingMax)}</span>
+              <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Wing Tank 1</span>
+              <span className="text-xl font-mono font-bold heading">{fmt(fuel.wingTank1 || 0)} kg</span>
+              <span className="text-[10px] muted block mt-1">max {fmt(wingMaxEach)}</span>
+            </div>
+            <div className="live-panel p-4 text-center">
+              <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Wing Tank 2</span>
+              <span className="text-xl font-mono font-bold heading">{fmt(fuel.wingTank2 || 0)} kg</span>
+              <span className="text-[10px] muted block mt-1">max {fmt(wingMaxEach)}</span>
             </div>
             <div className="live-panel p-4 text-center">
               <span className="text-[10px] font-bold field-label uppercase tracking-wider block mb-2">Centre Tank</span>
@@ -106,20 +115,36 @@ export default function Step5Fuel() {
           </div>
         </>
       ) : (
-        <div className="grid grid-cols-2 gap-5">
-          <div>
-            <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
-              Wing 1+2 TOF (kg) <span className="font-normal normal-case muted">max {fmt(wingMax)}</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              max={wingMax}
-              value={fuel.wingTanks || ''}
-              onChange={(e) => setFuel('wingTanks', e.target.value ? Number(e.target.value) : 0)}
-              className={`field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch ${(fuel.wingTanks || 0) > wingMax ? 'border-red-400' : ''}`}
-              placeholder="0"
-            />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
+                Wing Tank 1 (kg) <span className="font-normal normal-case muted">max {fmt(wingMaxEach)}</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={wingMaxEach}
+                value={fuel.wingTank1 || ''}
+                onChange={(e) => setFuel('wingTank1', e.target.value ? Number(e.target.value) : 0)}
+                className={`field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch ${(fuel.wingTank1 || 0) > wingMaxEach ? 'border-red-400' : ''}`}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">
+                Wing Tank 2 (kg) <span className="font-normal normal-case muted">max {fmt(wingMaxEach)}</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={wingMaxEach}
+                value={fuel.wingTank2 || ''}
+                onChange={(e) => setFuel('wingTank2', e.target.value ? Number(e.target.value) : 0)}
+                className={`field-input w-full px-4 py-3.5 text-xl font-mono font-bold text-center touch ${(fuel.wingTank2 || 0) > wingMaxEach ? 'border-red-400' : ''}`}
+                placeholder="0"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-[11px] font-bold field-label uppercase tracking-wider mb-1.5">

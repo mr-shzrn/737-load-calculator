@@ -240,6 +240,8 @@ export const AIRCRAFT_VARIANTS = [
     cargoTableSet: '737-max-8',
     fuelTableSet: '737-max-8',
     wingTankMax: 8198,
+    centerTankMax: 13763,
+    totalFuelMax: 21961,
     holdLimits: [
       { id: 'HOLD1', max: 809  },
       { id: 'HOLD2', max: 2670 },

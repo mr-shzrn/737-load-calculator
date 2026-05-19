@@ -43,7 +43,7 @@ const DEFAULT_INPUTS = {
   children: 0,
   infants: 0,
   cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 },
-  fuel: { wingTanks: 0, centerTank: 0, tripFuel: null },
+  fuel: { wingTank1: 0, wingTank2: 0, centerTank: 0, tripFuel: null },
   takeoffConfig: { flaps: 'F5', thrust: '26K' },
 };
 
