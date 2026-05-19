@@ -6,6 +6,9 @@ import {
   computeFlightDowDoi,
   saveDeliveryToStorage,
   clearDeliveryFromStorage,
+  IU_REF_ARM,
+  IU_SCALE,
+  IU_OFFSET,
 } from '../utils/deliveryMode.js';
 import { getAllCargoIndices } from '../utils/indexLookup.js';
 
@@ -218,9 +221,21 @@ export function CalculationProvider({ children }) {
   }, [aircraft, state.inputs.takeoffConfig]);
 
   const results = useMemo(() => {
-    const { dow, doi, passengers, cargo, fuel, children, infants } = state.inputs;
+    const { dow, doi, passengers, cargo, fuel, children, infants,
+            deliveryMode, deliveryData } = state.inputs;
     const dowNum = Number(dow);
-    const doiNum = Number(doi);
+    let doiNum = Number(doi);
+
+    // In delivery mode, back-calculate a precise decimal ZFI from the manifest MACZFW
+    // to avoid the 0.46 IU rounding error introduced by doiFromMac's Math.round().
+    // Any adjustment delta (extra crew/cargo) is carried over from the stored integer doi.
+    if (deliveryMode && deliveryData?.mac && aircraft) {
+      const preciseBaseDoi = dowNum
+        * ((deliveryData.mac / 100 * aircraft.macLength) + aircraft.lemac - IU_REF_ARM)
+        / IU_SCALE + IU_OFFSET;
+      doiNum = preciseBaseDoi + (Number(doi) - (deliveryData.doi ?? 0));
+    }
+
     if (!aircraft || !dow || !doi || isNaN(dowNum) || isNaN(doiNum)) return null;
     try {
       return performCalculation({
