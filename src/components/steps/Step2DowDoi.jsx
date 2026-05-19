@@ -90,7 +90,12 @@ function Max8DowDoi() {
   const selectedCrew   = MAX_8_CREW_CONFIGS.find(c => c.id === inputs.crewConfig) || null;
   const selectedPantry = MAX_8_PANTRY_OPTIONS.find(p => p.id === inputs.pantryType) || null;
   const allSelected    = selectedReg && selectedCrew && selectedPantry;
-  const savedDelivery  = inputs.registration ? loadDeliveryFromStorage(inputs.registration) : null;
+  const storedDelivery = inputs.registration ? loadDeliveryFromStorage(inputs.registration) : null;
+  const presetKey = selectedReg?.deliveryPreset?.manifest?.split('/')[0]?.trim()?.toUpperCase();
+  const storedKey = storedDelivery?.manifest?.split('/')[0]?.trim()?.toUpperCase();
+  const savedDelivery = (presetKey && storedKey && presetKey !== storedKey)
+    ? null
+    : storedDelivery;
   const manifestLookup = useMemo(() => buildManifestLookup(registrations), [registrations]);
   const manifestMatch = manifestInput.length >= 4
     ? (manifestLookup[manifestInput.trim().toUpperCase()] ?? null)
