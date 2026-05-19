@@ -96,3 +96,17 @@ export function computeFlightDowDoi(
     doi: Math.round(deliveryData.doi + iuDelta),
   };
 }
+
+// ── Manifest number → delivery data lookup ────────────────────────────────────
+// Derives a lookup map from the registry's deliveryPreset entries.
+// Key = manifest number stripped of date suffix, e.g. "1N716 / 18-MAY-2026" → "1N716".
+// Each new deliveryPreset added to the registry is automatically included.
+export function buildManifestLookup(registrations) {
+  const map = {};
+  for (const r of registrations) {
+    if (!r.deliveryPreset?.manifest) continue;
+    const key = r.deliveryPreset.manifest.split('/')[0].trim().toUpperCase();
+    map[key] = { ...r.deliveryPreset, reg: r.reg };
+  }
+  return map;
+}
