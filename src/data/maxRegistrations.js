@@ -19,7 +19,7 @@ export const MAX_8_REGISTRATIONS = [
   { reg: '9M-MVO', bew: 44375, bew_iu: 41.67, deliveryPreset: { v: 2, manifest: '1N715 / 06-APR-2026', dow: 45501, doi: 36, mac: 14.97, crew: 3, pax: 4, cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 }, cargoTableSet: '737-max-8', note: 'ZFW locked from signed delivery manifest.' } },
   { reg: '9M-MVP', bew: 44420, bew_iu: 41.78, deliveryPreset: { v: 2, manifest: '1N716 / 18-MAY-2026', dow: 45772, doi: 37, mac: 15.32, crew: 3, pax: 5, cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 }, cargoBreakdown: [ { label: 'Baggage (Main Deck)', weight: 216 }, { label: 'Cargo (Aft Compartment)', weight: 336 }, { label: 'Cargo (Main Deck)', weight: 19 }, { label: 'Documents (Main Deck)', weight: 27 } ], cargoTableSet: '737-max-8', note: 'ZFW locked from signed delivery manifest.' } },
   { reg: '9M-MVQ', bew: 0, bew_iu: 0 },
-  { reg: '9M-MVR', bew: 0, bew_iu: 0 },
+  { reg: '9M-MVR', bew: 44123, bew_iu: 39.40, deliveryPreset: { v: 2, manifest: '1N718 / 21-MAY-2026', dow: 45278, doi: 35, mac: 14.6, crew: 3, pax: 4, cargo: { HOLD1: 0, HOLD2: 0, HOLD3: 0, HOLD4: 0 }, cargoBreakdown: [ { label: 'Baggage (Main Deck)', weight: 189 }, { label: 'Cargo (Main Deck)', weight: 19 }, { label: 'Documents (Main Deck)', weight: 27 } ], cargoTableSet: '737-max-8', note: 'ZFW locked from signed delivery manifest.' } },
   { reg: '9M-MVS', bew: 0, bew_iu: 0 },
   { reg: '9M-MVT', bew: 0, bew_iu: 0 },
   { reg: '9M-MVU', bew: 0, bew_iu: 0 },
